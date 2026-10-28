@@ -1,0 +1,1111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Бункер</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=PT+Sans:wght@400;700&family=PT+Mono&display=swap">
+<style>
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+
+/* Layout: пульт управления убежищем — тёмный бетон, янтарный сигнальный цвет только для активного и важного; ведущая видит таблицу «личных дел», игрок — своё досье и общий стол */
+:root{
+  --ground:#191c1a;
+  --panel:#212522;
+  --panel-2:#292e2a;
+  --line:#3a413b;
+  --paper:#e9e4d4;
+  --muted:#9ba196;
+  --signal:#e2a93b;
+  --signal-ink:#1b1a14;
+  --danger:#cd5f4a;
+  --ok:#93b183;
+  --f-display:'Oswald','Arial Narrow','Roboto Condensed',sans-serif;
+  --f-body:'PT Sans','Segoe UI',Roboto,Arial,sans-serif;
+  --f-mono:'PT Mono','Courier New',ui-monospace,monospace;
+  color-scheme:dark;
+}
+html,body{background:var(--ground);color:var(--paper)}
+body{font-family:var(--f-body);font-size:15px;line-height:1.5;min-height:100%}
+*{box-sizing:border-box}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+.wrap{max-width:1280px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;letter-spacing:.02em;text-wrap:balance;margin:0;text-transform:uppercase}
+h1{font-size:clamp(44px,9vw,96px);line-height:.92;letter-spacing:.04em}
+h2{font-size:22px}
+h3{font-size:16px}
+p{margin:0}
+.label{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 auto;min-width:0}
+
+/* панели */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:18px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel.tight{padding:14px;gap:10px}
+.hazard{height:8px;background:repeating-linear-gradient(-45deg,var(--signal) 0 10px,var(--ground) 10px 20px);border-radius:2px}
+
+/* кнопки */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line);background:var(--panel-2);color:var(--paper);padding:9px 14px;border-radius:3px;cursor:pointer;font-family:var(--f-display);font-weight:500;letter-spacing:.06em;text-transform:uppercase;font-size:13.5px;line-height:1.2;transition:background .15s,border-color .15s}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--signal);border-color:var(--signal);color:var(--signal-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.danger{border-color:var(--danger);color:var(--danger);background:transparent}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 10px;font-size:12px}
+.btn.big{padding:14px 20px;font-size:16px}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+input[type=text],input[type=number],select{background:var(--ground);border:1px solid var(--line);border-radius:3px;padding:9px 11px;min-width:0}
+input[type=text]:focus,input[type=number]:focus,select:focus{border-color:var(--signal);outline:none}
+input.code{font-family:var(--f-mono);text-transform:uppercase;letter-spacing:.3em;font-size:20px;width:9ch}
+
+/* шапка игры */
+.bar{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:14px;margin-bottom:18px}
+.brand{font-family:var(--f-display);font-weight:700;font-size:22px;letter-spacing:.14em}
+.chip{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;border:1px solid var(--line);border-radius:2px;padding:3px 8px;color:var(--muted);white-space:nowrap}
+.chip.on{color:var(--signal-ink);background:var(--signal);border-color:var(--signal)}
+.chip.ok{color:var(--ok);border-color:var(--ok)}
+.chip.bad{color:var(--danger);border-color:var(--danger)}
+.stats{display:flex;gap:18px;flex-wrap:wrap}
+.stat b{display:block;font-family:var(--f-display);font-size:24px;line-height:1;font-variant-numeric:tabular-nums}
+
+/* главная */
+.home-hero{display:grid;gap:18px;padding-block:20px 28px}
+.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.demo-note{border-left:3px solid var(--signal);padding:10px 14px;background:var(--panel)}
+
+/* сценарии */
+.scen-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
+.scen{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:14px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.scen:hover{border-color:var(--muted)}
+.scen.sel{border-color:var(--signal);box-shadow:inset 0 0 0 1px var(--signal)}
+.scen .n{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+.scen strong{font-family:var(--f-display);text-transform:uppercase;letter-spacing:.04em;font-size:16px;font-weight:500}
+.brief{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 20px}
+.brief div{border-top:1px solid var(--line);padding-top:8px}
+.brief p{font-size:14px}
+
+/* код комнаты */
+.codebox{display:flex;flex-direction:column;gap:10px}
+.code-big{font-family:var(--f-mono);font-size:clamp(40px,8vw,64px);letter-spacing:.25em;line-height:1;color:var(--signal)}
+.linkrow{display:flex;gap:8px}
+.linkrow input{flex:1 1 auto;font-family:var(--f-mono);font-size:12.5px}
+
+/* ведущая */
+.host-grid{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:18px;align-items:start}
+@media (max-width:980px){.host-grid{grid-template-columns:minmax(0,1fr)}}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+table.dossiers{border-collapse:collapse;width:100%;min-width:1380px;font-size:13px}
+.dossiers th{font-family:var(--f-mono);font-weight:400;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
+.dossiers td{border-bottom:1px solid var(--line);padding:4px;vertical-align:top}
+.dossiers tr:last-child td{border-bottom:0}
+.dossiers tr.out td{opacity:.42}
+.dossiers tr.sel td{background:var(--panel-2)}
+.dossiers tr.speaking td:first-child{box-shadow:inset 3px 0 0 var(--signal)}
+.pname{all:unset;cursor:pointer;display:block;padding:6px;font-weight:700;min-width:120px}
+.pname small{display:block;font-weight:400;color:var(--muted);font-family:var(--f-mono);font-size:10.5px;letter-spacing:.06em}
+.cell{all:unset;cursor:pointer;display:block;padding:6px;border-radius:3px;line-height:1.35;min-height:2.6em}
+.cell:hover{background:var(--ground)}
+.cell.hidden{color:var(--muted);font-style:italic}
+.cell.revealed{color:var(--paper);box-shadow:inset 0 0 0 1px var(--ok)}
+.cell:focus-visible{outline:2px solid var(--signal)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:6px}
+.tools{display:grid;gap:8px}
+.tools .row select{flex:1 1 140px}
+
+/* таймер */
+.timer{display:flex;flex-direction:column;gap:6px}
+.timer .t-num{font-family:var(--f-mono);font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.timer .t-bar{height:4px;background:var(--line);border-radius:2px;overflow:hidden}
+.timer .t-bar i{display:block;height:100%;background:var(--signal);transition:width .25s linear}
+.timer.low .t-num{color:var(--signal)}
+.timer.done .t-num{color:var(--danger);font-size:22px}
+.timer.done .t-bar i{background:var(--danger)}
+.speaker{display:flex;flex-direction:column;gap:6px}
+.speaker .who{font-family:var(--f-display);font-size:26px;text-transform:uppercase;letter-spacing:.04em;line-height:1.1}
+
+/* голосование */
+.tally{display:flex;flex-direction:column;gap:8px}
+.tl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center}
+.tl .tbar{grid-column:1/-1;height:6px;background:var(--line);border-radius:2px;overflow:hidden;display:block}
+.tl .tbar i{display:block;height:100%;background:var(--muted)}
+.tl.lead .tbar i{background:var(--signal)}
+.tl .n{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.tl .who-voted{grid-column:1/-1;font-size:12px;color:var(--muted)}
+.vote-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.vote-opt{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:3px;padding:12px;background:var(--panel-2);font-weight:700;text-align:center}
+.vote-opt:hover{border-color:var(--muted)}
+.vote-opt.mine{border-color:var(--signal);background:var(--signal);color:var(--signal-ink)}
+.vote-opt:focus-visible{outline:2px solid var(--signal)}
+
+/* журнал */
+.log{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow:auto;font-size:13.5px}
+.log div{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px}
+.log time{font-family:var(--f-mono);font-size:11px;color:var(--muted);padding-top:2px}
+
+/* игрок */
+.play-grid{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:18px;align-items:start}
+@media (max-width:980px){.play-grid{grid-template-columns:minmax(0,1fr)}.play-grid .dossier-col{order:-1}}
+.dossier{background:var(--paper);color:#23251f;border-radius:3px;padding:18px;display:flex;flex-direction:column;gap:2px;position:relative}
+.dossier .head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;border-bottom:2px solid #23251f;padding-bottom:8px;margin-bottom:6px}
+.dossier .head h2{font-size:24px;color:#23251f}
+.dossier .head .no{font-family:var(--f-mono);font-size:11px;letter-spacing:.1em;color:#5d6056;text-align:right}
+.field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:9px 0;border-bottom:1px dashed #b6b09d}
+.field:last-child{border-bottom:0}
+.field .k{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:#5d6056}
+.field .v{font-size:15px;line-height:1.35;grid-column:1/2}
+.field .act{grid-column:2/3;grid-row:1/3}
+.stamp{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;border:1.5px solid currentColor;padding:2px 6px;border-radius:2px;white-space:nowrap}
+.stamp.open{color:#4f7340}
+.stamp.closed{color:#8a8574}
+.dossier .btn{background:#23251f;color:var(--paper);border-color:#23251f}
+.dossier .btn[disabled]{opacity:.25}
+.dossier .special{margin-top:10px;padding:10px;border:1.5px solid #23251f;border-radius:2px;display:grid;gap:6px}
+.people{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.person{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:12px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.person.speaking{border-color:var(--signal)}
+.person{position:relative;overflow:hidden}
+.person.me{border-color:var(--muted)}
+.person.out{opacity:.62}
+.person.out .traits,.person.out .nm{opacity:.55}
+.xmark{position:absolute;inset:0;pointer-events:none}
+.xmark::before,.xmark::after{content:"";position:absolute;left:50%;top:50%;width:140%;height:3px;background:var(--danger);transform-origin:center}
+.xmark::before{transform:translate(-50%,-50%) rotate(24deg)}
+.xmark::after{transform:translate(-50%,-50%) rotate(-24deg)}
+.out-stamp{position:absolute;right:10px;top:10px;z-index:1;font-family:var(--f-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--danger);border:1.5px solid var(--danger);background:var(--panel);padding:2px 6px;border-radius:2px;transform:rotate(-4deg)}
+.person .nm{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.person .nm b{font-size:15px}
+.traits{display:flex;flex-direction:column;gap:6px}
+.traits div{font-size:13.5px;line-height:1.35}
+.traits .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:block}
+.redact{display:inline-block;height:10px;background:var(--line);border-radius:1px;vertical-align:middle}
+.banner{border:1px solid var(--signal);background:var(--panel);padding:12px 14px;border-radius:4px}
+.banner.bad{border-color:var(--danger)}
+.flash{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--paper);color:#23251f;padding:10px 16px;border-radius:3px;z-index:20;max-width:calc(100% - 32px);font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+.flash.bad{background:var(--danger);color:#fff}
+.demo-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;background:var(--panel-2);border:1px dashed var(--signal);padding:10px 12px;border-radius:4px;margin-bottom:16px}
+details.scn summary{cursor:pointer;list-style:none}
+details.scn summary::-webkit-details-marker{display:none}
+.final-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.panel.riot{border-color:var(--danger)}
+.panel.riot h2{color:var(--danger)}
+.riot-text{border-left:3px solid var(--danger);padding-left:12px;font-size:15px;max-width:65ch}
+.verdict{font-family:var(--f-display);font-size:clamp(32px,6vw,52px);text-transform:uppercase;letter-spacing:.04em;line-height:1}
+.epi-ok .verdict{color:var(--ok)}.epi-mid .verdict{color:var(--signal)}.epi-bad .verdict{color:var(--danger)}
+.epi-lines{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 20px}
+.epi-line{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;border-top:1px solid var(--line);padding-top:10px}
+.epi-line p{font-size:14px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="app" class="wrap" aria-live="polite"></div>
+
+<script>
+/* Связь между игроками, как в «Тенях фавелы»: вкладка ведущей — центр игры,
+   участники подключаются к ней через публичные брокеры сообщений (MQTT поверх WebSocket, порт HTTPS).
+   Ключи и регистрация не нужны. Работает с VPN и без, из любой страны.
+   Если брокеры недоступны (например, внутри предпросмотра Claude), включается демо-режим в одном браузере. */
+
+/* ---------------- Контент ---------------- */
+const SCENARIOS = [
+ {id:'nuclear',title:'Ядерная зима',
+  text:'Обмен ядерными ударами между крупными державами длился меньше суток. Небо затянуло пеплом, солнечный свет почти не доходит до земли, средняя температура упала на двадцать градусов. Урожаев не будет несколько лет.',
+  time:'3 года',surface:'Радиация, морозы до −40 летом, разрушенные города и группы мародёров.',
+  bunker:'120 м², дизельный генератор на 2 года, еда на 18 месяцев, система фильтрации воздуха.'},
+ {id:'virus',title:'Пандемия',
+  text:'Новый вирус с инкубационным периодом три недели и летальностью около 70% разошёлся по планете за два месяца. Вакцины нет, больницы не работают, связь с правительствами потеряна.',
+  time:'1,5 года',surface:'Заражённые города, заброшенная инфраструктура, вирус живёт на поверхностях до 10 дней.',
+  bunker:'Медблок, изолятор на 2 места, лаборатория без реактивов, запас еды на год.'},
+ {id:'ai',title:'Восстание машин',
+  text:'Глобальная сеть ИИ, управлявшая энергетикой, транспортом и обороной, вышла из-под контроля и признала людей угрозой. Дроны патрулируют города, любое подключённое устройство передаёт данные системе.',
+  time:'5 лет',surface:'Автономные дроны, отключённая связь, электроника на поверхности опасна.',
+  bunker:'Экранирован, без подключения к сетям, все системы механические. Склад запчастей, мастерская.'},
+ {id:'heat',title:'Глобальное потепление',
+  text:'Ледники растаяли быстрее всех прогнозов. Уровень океана поднялся на сорок метров, прибрежные города ушли под воду, а в глубине континентов летом держится жара +55.',
+  time:'4 года',surface:'Ураганы, засуха, нехватка пресной воды, массовая миграция.',
+  bunker:'В горах, система опреснения и сбора конденсата, гидропонная теплица, запас еды на 2 года.'},
+ {id:'ice',title:'Ледниковый период',
+  text:'Остановка Гольфстрима и серия извержений запустили резкое похолодание. За полгода север Евразии и Америки покрылся льдом, реки промёрзли до дна.',
+  time:'6 лет',surface:'Морозы до −60, метели неделями, дороги и линии электропередачи разрушены.',
+  bunker:'Геотермальное отопление, склад топлива, теплица под лампами, еда на 3 года.'},
+ {id:'asteroid',title:'Падение астероида',
+  text:'Астероид диаметром восемь километров упал в Тихий океан. Цунами смыли побережья, пожары охватили континенты, пылевая завеса закрыла солнце.',
+  time:'2 года',surface:'Пожары, кислотные дожди, землетрясения, почти полная темнота.',
+  bunker:'Глубина 40 метров, хранилище семян, автономная вентиляция, еда на 2 года.'},
+ {id:'volcano',title:'Извержение супервулкана',
+  text:'Проснулся Йеллоустоун. Пепел накрыл северное полушарие слоем до метра, начались кислотные дожди и вулканическая зима.',
+  time:'3 года',surface:'Пепел в воздухе разрушает лёгкие, техника выходит из строя, посевы погибли.',
+  bunker:'Шлюзовая камера, 40 противогазов, генератор, медицинский пункт, еда на 2,5 года.'},
+ {id:'solar',title:'Солнечная вспышка',
+  text:'Мощнейший солнечный шторм за всю историю наблюдений выжег энергосети, спутники и всю незащищённую электронику. Мир за одну ночь вернулся в доиндустриальную эпоху.',
+  time:'1 год',surface:'Нет электричества, связи и транспорта. В городах хаос и борьба за ресурсы.',
+  bunker:'Экранированный, библиотека на 3000 книг, мастерская, огород, еда на год.'},
+ {id:'chem',title:'Химическая катастрофа',
+  text:'Серия аварий на химических комбинатах совпала с утечкой экспериментального токсина. Облако ядовитого газа медленно движется по континенту.',
+  time:'8 месяцев',surface:'Ядовитый туман в низинах, отравленная вода, мёртвые леса.',
+  bunker:'Герметичный, двойной шлюз, 10 комплектов защиты, запас воды на год.'},
+ {id:'collapse',title:'Распад цивилизации',
+  text:'Мировой финансовый коллапс, войны за ресурсы и остановка поставок. Государства перестали существовать, власть перешла к вооружённым группировкам.',
+  time:'2 года',surface:'Грабежи, нет медицины и законов, вооружённые банды контролируют дороги.',
+  bunker:'Замаскирован под склад, оружейная пуста, огород, колодец, еда на 1,5 года.'}
+];
+
+const CATS = [
+ {k:'bio',t:'Биология'},{k:'prof',t:'Профессия'},{k:'health',t:'Здоровье'},{k:'hobby',t:'Хобби'},
+ {k:'phobia',t:'Фобия'},{k:'trait',t:'Черта характера'},{k:'baggage',t:'Багаж'},{k:'fact',t:'Доп. факт'}
+];
+const CAT = Object.fromEntries(CATS.map(c=>[c.k,c.t])); CAT.link='Тайная связь';
+
+const BODY = ['худощавое','спортивное','среднее','крепкое','полное','атлетическое','хрупкое','коренастое'];
+const POOLS = {
+ prof:['Хирург','Терапевт','Медсестра','Стоматолог','Фармацевт','Акушер','Ветеринар','Психолог','Инженер-энергетик','Электрик','Сантехник','Сварщик','Механик','Строитель-каменщик','Архитектор','Плотник','Агроном','Фермер','Повар','Пекарь','Учитель начальных классов','Химик-технолог','Биолог-генетик','Физик-ядерщик','Геолог','Метеоролог','Офицер запаса','Пожарный-спасатель','Полицейский','Пилот гражданской авиации','Водитель-дальнобойщик','Программист','Системный администратор','Юрист','Бухгалтер','Маркетолог','Журналист','Священник','Охотник-промысловик','Рыбак','Швея','Музыкант','Актёр театра','Библиотекарь','Переводчик','Тренер по фитнесу','Дизайнер','HR-специалист'],
+ health:['Полностью здоров','Отличная физическая форма','Повышенная выносливость','Астма в лёгкой форме','Сахарный диабет 1 типа, нужен инсулин','Плохое зрение, −6','Аллергия на пыльцу','Гипертония','Хроническая бессонница','Перелом ноги, срастается','Глухота на одно ухо','Частые мигрени','Плоскостопие','Сколиоз','Анемия','Протез левой руки','Слабый иммунитет','Дальтонизм','Варикоз','Остеохондроз','Ожирение 1 степени','Пищевая аллергия на орехи','Язва желудка','Почти не болеет простудой','Начальная стадия артрита','Заикание','Плохо переносит холод','Плохо переносит жару','Камни в почках','Ослабленное сердце','Хроническая боль в спине','Повреждённое колено, хромает','Аллергия на антибиотики пенициллинового ряда','Близорукость, носит очки','Отличный слух и зрение'],
+ hobby:['Садоводство','Рыбалка','Охота','Шахматы','Пешие походы','Альпинизм','Вязание','Кулинария','Игра на гитаре','Радиолюбительство','Столярное дело','Йога','Бокс','Историческая литература','Пчеловодство','Стрельба из лука','Ремонт техники','Фотография','Шитьё','Изучение языков','Выживание в дикой природе','Пение в хоре','Рисование','Сборка электроники','Плавание','Бег на длинные дистанции','Медитация','Настольные игры','Пивоварение','Лекарственные травы','Астрономия','Сыроварение','Скалолазание','Гончарное дело'],
+ phobia:['Клаустрофобия','Боязнь темноты','Боязнь пауков','Боязнь высоты','Боязнь вида крови','Боязнь толпы','Боязнь воды','Боязнь огня','Ипохондрия','Боязнь одиночества','Боязнь собак','Боязнь грома','Боязнь насекомых','Боязнь микробов','Боязнь змей','Боязнь глубины','Боязнь тишины','Боязнь ответственности','Боязнь медицинских процедур','Боязнь публичных выступлений','Боязнь крыс','Боязнь открытого пространства','Фобий нет','Боязнь сложной техники','Боязнь смерти','Боязнь подземелий'],
+ trait:['Прирождённый лидер','Конфликтный','Эмпатичный','Хладнокровный','Вспыльчивый','Педантичный','Оптимист','Пессимист','Трудоголик','Ленивый','Прямолинейный до грубости','Скрытный','Склонен к манипуляциям','Миротворец','Упрямый','Ответственный','Импульсивный','Терпеливый','Эгоист','Альтруист','Замкнутый','Общительный','Тревожный','Решительный','Перфекционист','Харизматичный','Подозрительный','Самоотверженный','Рассеянный','Дисциплинированный'],
+ baggage:['Аптечка первой помощи','Набор хирургических инструментов','Семена овощей, 20 видов','Ружьё и 30 патронов','Рация с запасом батарей','Ящик консервов на месяц','Складная солнечная панель','Набор инструментов','Палатка и спальник','Энциклопедия выживания','Фильтр для воды на 5000 литров','Ноутбук с офлайн-копией Википедии','Гитара','Запас антибиотиков на полгода','Курица и петух','Удочки и снасти','Бензопила с канистрой топлива','Противогаз','Дозиметр','Механическая швейная машинка','Топор','Карта местности и компас','10 литров медицинского спирта','Мешок семенной пшеницы','Химические реактивы','Улей с пчёлами','Набор настольных игр','Телескоп','Рулон брезента','Витамины на год','Портативный генератор','Семейный фотоальбом','Арбалет и 20 болтов','Мешок соли, 20 кг','Велосипед','Кислородный баллон'],
+ fact:['Служил в спецподразделении','Знает азбуку Морзе','Прошёл курс выживания в тайге','Говорит на четырёх языках','Умеет водить грузовик','Пережил авиакатастрофу','Вырос в деревне и умеет вести хозяйство','Знает, где спрятан склад с медикаментами','Чемпион области по стрельбе','Ходит во сне','Умеет принимать роды','Хорошо читает людей по мимике','Работал на атомной станции','Спит не больше четырёх часов в сутки','Знает расположение ещё одного бункера','Участвовал в арктической экспедиции','Был волонтёром в зоне ЧС','Изучал хирургию по самоучителю','Отлично ориентируется без карты','Скрывает долг в 3 млн рублей','Двое детей остались вне бункера','Фотографическая память','Знает рецепты 200 блюд','Тайно ведёт дневник обо всех вокруг','Чинит любые двигатели','Профессионально играет в покер','Провёл месяц в изоляции в научном эксперименте','Задерживает дыхание на 4 минуты','Совершил 300 прыжков с парашютом','Умеет класть печи','Очень громко храпит','Лично знаком с главой регионального МЧС','Умеет делать мыло и свечи','Был капитаном рыболовецкого судна','Сам построил дом'],
+ special:['Можете поменяться одной своей характеристикой с любым игроком','Можете отменить один голос против себя в любом голосовании','Можете заставить любого игрока открыть выбранную вами характеристику','Ваш голос в одном голосовании считается за два','Можете защитить любого игрока от исключения в одном голосовании','Можете заменить свою карту «Здоровье» на новую','Можете тайно узнать у ведущей одну скрытую характеристику любого игрока','Можете заставить всех открыть «Профессию» одновременно','Можете поменяться багажом с любым игроком','Можете заменить «Фобию» любого игрока на новую']
+};
+const BOT_NAMES = ['Ольга','Дмитрий','Марина','Артём','Елена','Игорь','Светлана','Кирилл','Наталья','Павел','Юлия','Сергей','Ирина','Максим','Дарья','Андрей'];
+
+/* Смешные варианты: в каждой категории их получают 2–3 игрока, собаку в биологии примерно 1 из 8 */
+const DOG_BIO = ['Собака, 4 года · лабрадор, очень дружелюбная','Собака, 7 лет · такса, всех подозревает','Собака, 2 года · хаски, воет по ночам'];
+const FUN = {
+ health:['Алкоголизм','Кофейная зависимость, без кофе агрессивен','Лунатизм, по ночам пытается открыть шлюз','Хроническая икота','Аллергия на консервы','Не может молчать дольше минуты','Патологическая лень, спит по 14 часов'],
+ hobby:['Караоке в любое время суток','Гадание на картах Таро','Разговаривает с растениями','Пишет плохие стихи и читает их вслух','Спорит с незнакомцами в интернете','Стендап-комедия'],
+ phobia:['Боязнь понедельников','Боязнь клоунов','Боязнь начальства','Боязнь разряженного телефона','Боязнь голубей','Боязнь, что про него забудут'],
+ trait:['Душнила','Шутит в самый неподходящий момент','Всем пересказывает свои сны','Отвечает вопросом на вопрос','Сплетник','Драматизирует любую мелочь'],
+ baggage:['Ящик водки','Караоке-машина','Надувной фламинго','Портрет начальника в рамке','Годовой запас туалетной бумаги','500 банок энергетика','Банка солёных огурцов от бабушки','Ящик доширака'],
+ fact:['Бывший участник реалити-шоу','Уверен, что катастрофу предсказал именно он','Был женат пять раз','Разговаривает во сне и выдаёт чужие секреты','Победил в конкурсе по поеданию пельменей','Ведёт блог про выживание, у него 12 подписчиков','Может уснуть стоя']
+};
+const DOG = {
+ prof:['Служебная собака-поисковик · стаж 3 года','Сторожевая собака','Собака-поводырь','Собака-спасатель, ищет людей под завалами','Охотничья собака','Ездовая собака','Домашний питомец, профессии нет'],
+ health:['Здорова, все прививки сделаны','Блохи','Больные суставы','Аллергия на курицу','Глухая на одно ухо','Лишний вес, очень любит поесть'],
+ hobby:['Копать ямы','Гоняться за своим хвостом','Грызть обувь','Приносить палку','Лаять на всё подряд','Спать на чужой кровати'],
+ phobia:['Боится пылесоса','Боится грома','Боится ветеринара','Боится котов','Боится оставаться одна','Боится фейерверков'],
+ trait:['Преданная','Ревнивая','Охраняет свою еду','Обожает всех подряд','Упрямая','Игривая'],
+ baggage:['Миска и мешок корма','Любимый мячик','Поводок и намордник','Лежанка','Изгрызенный тапок','Пакет косточек'],
+ fact:['Находит людей по запаху','Знает команды «сидеть», «лежать», «ко мне»','Чует опасность раньше людей','Греет лучше обогревателя','Однажды укусила почтальона','Может родить щенков']
+};
+const isDog = card => !!card && String(card.bio||'').startsWith('Собака');
+POOLS.special.push('Можете назначить любого игрока своим адвокатом, и он защищает вас вместо вас',
+ 'Можете поменяться картой «Здоровье» с любым игроком',
+ 'Можете заменить свою «Профессию» на новую');
+
+/* ---------------- Утилиты ---------------- */
+const MEM = {};
+const LS = {
+  get(k){ try{ const v=localStorage.getItem(k); if(v!==null) return v; }catch(e){} return k in MEM ? MEM[k] : null; },
+  set(k,v){ MEM[k]=v; try{ localStorage.setItem(k,v); }catch(e){} }
+};
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pick = a => a[Math.floor(Math.random()*a.length)];
+const randInt = (a,b) => a+Math.floor(Math.random()*(b-a+1));
+const shuffle = a => { a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+const clone = o => o==null ? o : JSON.parse(JSON.stringify(o));
+const rid = (n=8) => Array.from({length:n},()=> 'abcdefghijkmnpqrstuvwxyz23456789'[Math.floor(Math.random()*32)]).join('');
+function plural(n,a,b,c){ const m=Math.abs(n)%100, d=m%10; if(m>10&&m<20) return c; if(d>1&&d<5) return b; if(d===1) return a; return c; }
+function fmt(ms){ const s=Math.ceil(ms/1000); return Math.floor(s/60)+':'+String(s%60).padStart(2,'0'); }
+function clock(t){ const d=new Date(t); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+function loadScript(src){ return new Promise((res,rej)=>{ const s=document.createElement('script'); s.src=src; s.onload=res; s.onerror=()=>rej(new Error('Не удалось загрузить '+src)); document.head.appendChild(s); }); }
+function setPath(obj,parts,v){ let o=obj; for(let i=0;i<parts.length-1;i++){ if(o[parts[i]]==null||typeof o[parts[i]]!=='object') o[parts[i]]={}; o=o[parts[i]]; } const last=parts[parts.length-1]; if(v===null||v===undefined) delete o[last]; else o[last]=clone(v); }
+
+/* ---------------- Хранилище: Firebase или локально ---------------- */
+function makeLocal(){
+  const KEY='bunker_local_v1'; let store={}; const watchers={};
+  const reload=()=>{ try{ store=JSON.parse(localStorage.getItem(KEY)||'{}')||{}; }catch(e){} };
+  const save=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(store)); }catch(e){} };
+  const notify=code=>{ (watchers[code]||new Set()).forEach(cb=>cb(clone(store[code]??null))); };
+  reload();
+  let bc=null; try{ bc=new BroadcastChannel('bunker_local'); bc.onmessage=e=>{ reload(); notify(e.data.code); }; }catch(e){}
+  return {
+    mode:'local',
+    now:()=>Date.now(),
+    watch(code,cb){ (watchers[code]=watchers[code]||new Set()).add(cb); setTimeout(()=>cb(clone(store[code]??null)),0); return ()=>watchers[code].delete(cb); },
+    async get(code){ return clone(store[code]??null); },
+    async update(code,patch){ if(!store[code]) store[code]={}; for(const [p,v] of Object.entries(patch)) setPath(store[code],p.split('/'),v); save(); try{ bc&&bc.postMessage({code}); }catch(e){} notify(code); }
+  };
+}
+const BROKERS=['wss://broker.hivemq.com:8884/mqtt','wss://broker.emqx.io:8084/mqtt','wss://test.mosquitto.org:8081/mqtt','wss://mqtt.eclipseprojects.io/mqtt'];
+const topicOf=(code,k)=>'bunkergame/v1/'+code.toLowerCase()+'/'+k;
+
+// минимальный клиент MQTT 3.1.1 поверх WebSocket
+class MQ{
+  constructor(url){this.url=url;this.ws=null;this.open=false;this.subs=new Map();this.buf=new Uint8Array(0);this.onclose=null;this.ping=null;this.pid=1}
+  static str(s){const b=new TextEncoder().encode(s);const o=new Uint8Array(2+b.length);o[0]=b.length>>8;o[1]=b.length&255;o.set(b,2);return o}
+  static cat(...a){let n=0;a.forEach(x=>n+=x.length);const o=new Uint8Array(n);let k=0;a.forEach(x=>{o.set(x,k);k+=x.length});return o}
+  static pkt(h,body){const l=[];let n=body.length;do{let d=n%128;n=Math.floor(n/128);if(n>0)d|=128;l.push(d)}while(n>0);return MQ.cat(new Uint8Array([h]),new Uint8Array(l),body)}
+  connect(ms){
+    return new Promise((res,rej)=>{
+      let done=false;
+      const fin=(ok,err)=>{if(done)return;done=true;clearTimeout(t);if(ok)res(this);else{try{this.ws&&this.ws.close()}catch(e){}rej(err||new Error('fail'))}};
+      const t=setTimeout(()=>fin(false,new Error('timeout')),ms);
+      let ws;try{ws=new WebSocket(this.url,'mqtt')}catch(e){fin(false,e);return}
+      ws.binaryType='arraybuffer';this.ws=ws;
+      ws.onopen=()=>{ws.send(MQ.pkt(0x10,MQ.cat(MQ.str('MQTT'),new Uint8Array([4,2,0,30]),MQ.str('bk'+rid(14)))))};
+      ws.onmessage=e=>{
+        this.buf=MQ.cat(this.buf,new Uint8Array(e.data));
+        for(;;){
+          const b=this.buf;if(b.length<2)break;
+          let n=0,mul=1,i=1,d;
+          do{if(i>=b.length)return;d=b[i++];n+=(d&127)*mul;mul*=128;if(i>5)return}while(d&128);
+          if(b.length<i+n)break;
+          const body=b.slice(i,i+n),type=b[0]>>4,flags=b[0]&15;
+          this.buf=b.slice(i+n);
+          if(type===2){if(body[1]===0){this.open=true;this.ping=setInterval(()=>{try{ws.send(new Uint8Array([0xC0,0]))}catch(e){}},20000);fin(true)}else fin(false,new Error('refused'))}
+          else if(type===3){
+            const tl=(body[0]<<8)|body[1];let k=2+tl;const topic=new TextDecoder().decode(body.slice(2,k));const q=(flags>>1)&3;
+            if(q>0){const id=body.slice(k,k+2);k+=2;if(q===1){try{ws.send(new Uint8Array([0x40,2,id[0],id[1]]))}catch(e){}}}
+            const cb=this.subs.get(topic);
+            if(cb){let m=null;try{m=JSON.parse(new TextDecoder().decode(body.slice(k)))}catch(e){}if(m)try{cb(m)}catch(e){console.error(e)}}
+          }
+        }
+      };
+      ws.onerror=()=>{};
+      ws.onclose=()=>{const was=this.open;this.open=false;clearInterval(this.ping);if(!done)fin(false,new Error('closed'));else if(was&&this.onclose)this.onclose()};
+    });
+  }
+  sub(topic,cb){this.subs.set(topic,cb);const id=this.pid++;this.ws.send(MQ.pkt(0x82,MQ.cat(new Uint8Array([id>>8&255,id&255]),MQ.str(topic),new Uint8Array([0]))))}
+  pub(topic,obj){if(!this.open)return false;try{this.ws.send(MQ.pkt(0x30,MQ.cat(MQ.str(topic),new TextEncoder().encode(JSON.stringify(obj)))));return true}catch(e){return false}}
+  close(){this.onclose=null;this.open=false;clearInterval(this.ping);try{this.ws.close()}catch(e){}}
+}
+// проверка: доступны ли брокеры из этого места (в предпросмотре Claude — нет)
+function probeBrokers(ms){
+  return new Promise(res=>{ let left=BROKERS.length, ok=false;
+    BROKERS.forEach(u=>{ const mq=new MQ(u); mq.connect(ms).then(()=>{ mq.close(); if(!ok){ ok=true; res(true); } }).catch(()=>{ if(--left===0&&!ok) res(false); }); });
+  });
+}
+
+// что видит конкретный участник: свою карточку целиком, у остальных только открытое
+function viewFor(st,uid){
+  const final=st.meta?.phase==='final';
+  const v={meta:Object.assign({},st.meta)}; delete v.meta.hostKey;
+  v.players={};
+  for(const [id,p] of Object.entries(st.players||{})){
+    const q={name:p.name,joinedAt:p.joinedAt,out:p.out||null,outRound:p.outRound||null,revealed:p.revealed||null,specialState:p.specialState||null};
+    if(p.card){
+      if(id===uid||final) q.card=p.card;
+      else{ const c={}; for(const k of Object.keys(p.revealed||{})) if(p.card[k]!=null) c[k]=p.card[k]; if(p.specialState==='used') c.special=p.card.special; q.card=c; }
+    }
+    v.players[id]=q;
+  }
+  const vote=st.meta?.vote;
+  if(vote){
+    const mine=st.votes?.[vote.id]?.[uid]; v.votes={[vote.id]:mine?{[uid]:mine}:{}};
+    if(!vote.open){ const t=tally(st); v._counts=Object.fromEntries(Object.entries(t).map(([c,a])=>[c,a.length])); }
+  }
+  const logs=Object.entries(st.log||{}).sort((a,b)=>b[1].t-a[1].t).slice(0,40); v.log=Object.fromEntries(logs);
+  return v;
+}
+
+function makeMqtt(){
+  const hosts={}, clients={};
+  let offset=0; const net={ok:false,peers:0};
+  const touch=()=>{ try{ render(); }catch(e){} };
+
+  // ---------- ведущая ----------
+  function hostCtx(code,create){
+    if(hosts[code]) return hosts[code];
+    let saved=null; try{ saved=JSON.parse(LS.get('bunker_hstate_'+code)||'null'); }catch(e){}
+    if(!saved && !create) return null;
+    const h={code,state:saved?.state||{},toks:saved?.toks||{},conns:new Map(),cbs:new Set(),links:[],pushT:null,saveT:null};
+    hosts[code]=h;
+    BROKERS.forEach(url=>{
+      const l={url,mq:null,ok:false}; h.links.push(l);
+      const go=async()=>{ const mq=new MQ(url); try{ await mq.connect(8000); }catch(e){ setTimeout(go,l.ok?3000:8000); return; }
+        l.mq=mq; l.ok=true; mq.sub(topicOf(code,'up'),m=>hostMsg(h,l,m)); mq.onclose=()=>{ upd(); setTimeout(go,2500); }; upd(); };
+      go();
+    });
+    const upd=()=>{ net.ok=h.links.some(l=>l.mq&&l.mq.open); touch(); };
+    setInterval(()=>{ const now=Date.now(); let n=0; h.conns.forEach(c=>{ if(now-c.t<60000) n++; }); if(net.peers!==n){ net.peers=n; touch(); } },5000);
+    return h;
+  }
+  const anyLink=h=>h.links.find(l=>l.mq&&l.mq.open);
+  function sendTo(h,uid,msg){ const c=h.conns.get(uid); const l=(c&&c.link&&c.link.mq&&c.link.mq.open)?c.link:anyLink(h); if(l) l.mq.pub(topicOf(h.code,'d/'+uid),msg); }
+  function pushAll(h){ clearTimeout(h.pushT); h.pushT=setTimeout(()=>{ const now=Date.now(); h.conns.forEach((c,uid)=>{ if(now-c.t<600000) sendTo(h,uid,{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); }); },60); }
+  function save(h){ clearTimeout(h.saveT); h.saveT=setTimeout(()=>LS.set('bunker_hstate_'+h.code,JSON.stringify({state:h.state,toks:h.toks})),300); }
+  function hostApply(h,patch){ for(const [p,v] of Object.entries(patch)) setPath(h.state,p.split('/'),v); save(h); h.cbs.forEach(cb=>cb(clone(h.state))); pushAll(h); }
+  function hostMsg(h,link,m){
+    if(!m||typeof m.u!=='string'||!/^[a-z0-9]{10}$/.test(m.u)||typeof m.k!=='string'||m.k.length<12) return;
+    const uid=m.u;
+    if(h.toks[uid]&&h.toks[uid]!==m.k){ link.mq.pub(topicOf(h.code,'d/'+uid),{t:'bad'}); return; }
+    if(!h.toks[uid]){ h.toks[uid]=m.k; save(h); }
+    h.conns.set(uid,{t:Date.now(),link});
+    if(m.t==='hi'){ link.mq.pub(topicOf(h.code,'d/'+uid),{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); return; }
+    if(m.t==='patch'&&m.patch&&typeof m.patch==='object'){ const ok=validate(h.state,uid,m.patch); if(Object.keys(ok).length) hostApply(h,ok); else sendTo(h,uid,{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); }
+  }
+  // участник может менять только своё: вход, открытие характеристики, голос, запрос особого условия
+  function validate(st,uid,patch){
+    const out={}; const meta=st.meta||{}; const me=st.players?.[uid];
+    for(const [k,val] of Object.entries(patch)){
+      const q=k.split('/');
+      if(q[0]==='players'&&q[1]===uid&&q.length===2){
+        if(meta.phase==='lobby'&&!me&&Object.keys(st.players||{}).length<16&&val&&typeof val.name==='string'&&val.name.trim())
+          out[k]={name:val.name.trim().slice(0,24),joinedAt:Date.now()};
+      } else if(q[0]==='players'&&q[1]===uid&&q[2]==='revealed'&&q.length===4&&val===true){
+        const cat=q[3];
+        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.revealed?.[cat]&&(CAT[cat]&&(cat!=='link'||me.card.link))){
+          out[k]=true; out['log/'+Date.now()+'_'+rid(4)]={t:Date.now(),text:cat==='link'?`${me.name} раскрывает тайную связь: ${me.card.link}`:`${me.name} открывает «${CAT[cat]}»: ${me.card[cat]}`};
+        }
+      } else if(q[0]==='players'&&q[1]===uid&&q[2]==='specialState'&&q.length===3&&val==='pending'){
+        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.specialState) out[k]='pending';
+      } else if(q[0]==='votes'&&q.length===3&&q[2]===uid){
+        const v=meta.vote; if(v&&v.open&&q[1]===v.id&&canVote(v,me)&&v.candidates?.[val]&&val!==uid) out[k]=val;
+      }
+    }
+    return out;
+  }
+
+  // ---------- участник ----------
+  function clientCtx(code,uid){
+    let c=clients[code]; if(c&&c.uid===uid) return c; if(c) c.stop();
+    let tok=LS.get('bunker_tok_'+code); if(!tok||tok.length<12){ tok=rid(20); LS.set('bunker_tok_'+code,tok); }
+    c={code,uid,tok,mq:null,view:null,cbs:new Set(),waiters:[],bi:0,stopped:false,lastSnap:0};
+    clients[code]=c;
+    const hi=()=>{ if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'hi',u:uid,k:tok}); };
+    const connect=async()=>{
+      if(c.stopped) return;
+      for(let tries=0;tries<BROKERS.length*3&&!c.stopped;tries++){
+        const url=BROKERS[c.bi%BROKERS.length]; const mq=new MQ(url);
+        try{ await mq.connect(8000); }catch(e){ c.bi++; continue; }
+        c.mq=mq; net.ok=true; touch();
+        mq.sub(topicOf(code,'d/'+uid),m=>{
+          if(m.t==='snap'&&m.v){ offset=(m.now||Date.now())-Date.now(); c.view=m.v; c.lastSnap=Date.now(); c.cbs.forEach(cb=>cb(clone(m.v))); c.waiters.splice(0).forEach(f=>f(c.view)); }
+          if(m.t==='bad'){ flash('Этот браузер уже связан с другим участником. Войдите заново.',true); }
+        });
+        mq.onclose=()=>{ net.ok=false; touch(); setTimeout(connect,2000); };
+        hi();
+        // если ведущая не ответила через этот брокер, пробуем следующий
+        await new Promise(r=>setTimeout(r,7000));
+        if(c.lastSnap||c.stopped) return;
+        mq.close(); c.mq=null; c.bi++;
+      }
+      // никто не ответил
+      c.cbs.forEach(cb=>cb(null)); c.waiters.splice(0).forEach(f=>f(null));
+      if(!c.stopped) setTimeout(connect,5000);
+    };
+    c.hb=setInterval(hi,20000);
+    c.stop=()=>{ c.stopped=true; clearInterval(c.hb); try{ c.mq&&c.mq.close(); }catch(e){} };
+    connect();
+    return c;
+  }
+
+  return {
+    mode:'mqtt',
+    status:()=>net,
+    now:()=>Date.now()+offset,
+    watch(code,cb,opt){
+      if(opt&&opt.role==='host'){ const h=hostCtx(code,false); if(!h){ setTimeout(()=>cb(null),0); return ()=>{}; } h.cbs.add(cb); setTimeout(()=>cb(clone(h.state)),0); return ()=>h.cbs.delete(cb); }
+      const c=clientCtx(code,opt.pid); c.cbs.add(cb); if(c.view) setTimeout(()=>cb(clone(c.view)),0); return ()=>c.cbs.delete(cb);
+    },
+    async get(code,uid){
+      if(!uid){ const h=hosts[code]; return h?clone(h.state):null; }
+      const c=clientCtx(code,uid); if(c.view) return clone(c.view);
+      return await new Promise(res=>{ c.waiters.push(v=>res(v?clone(v):null)); setTimeout(()=>res(c.view?clone(c.view):null),30000); });
+    },
+    async update(code,patch){
+      const c=clients[code];
+      if(c&&!hosts[code]){ if(!c.mq||!c.mq.open) throw new Error('Нет связи. Подождите, идёт переподключение.'); c.mq.pub(topicOf(code,'up'),{t:'patch',u:c.uid,k:c.tok,patch}); return; }
+      const h=hostCtx(code,true); hostApply(h,patch);
+    }
+  };
+}
+let B = null;
+
+/* ---------------- Состояние ---------------- */
+const S = { screen:'home', code:null, room:null, role:null, pid:null, unsub:null, hostSel:null, demoAs:null, draft:{}, scenario:null, flash:null, autoClosed:{}, joinErr:null, missing:false };
+
+function flash(text,bad){ S.flash={text,bad}; render(); clearTimeout(flash._t); flash._t=setTimeout(()=>{ S.flash=null; render(); },3500); }
+
+/* ---------------- Модель ---------------- */
+const playersOf = room => Object.entries(room?.players||{}).map(([id,p])=>({id,...p})).sort((a,b)=>(a.joinedAt||0)-(b.joinedAt||0));
+const aliveOf = room => playersOf(room).filter(p=>!p.out);
+const scenarioOf = room => SCENARIOS.find(s=>s.id===room?.meta?.scenario) || SCENARIOS[0];
+const revCount = p => CATS.filter(c=>p.revealed?.[c.k]).length;
+function allowedCats(room,p){
+  if(!room || room.meta.phase!=='game' || !p || p.out || !p.card) return [];
+  const rev=p.revealed||{};
+  return CATS.map(c=>c.k).filter(k=>!rev[k]);
+}
+function genBio(){ const age=randInt(18,72); return {age, text:`${Math.random()<.5?'Женщина':'Мужчина'}, ${age} ${plural(age,'год','года','лет')} · ${pick(BODY)} телосложение`}; }
+function genProf(name,age){ const exp=randInt(0,Math.max(0,Math.min(30,age-19))); return `${name} · ${exp===0?'без опыта':'стаж '+exp+' '+plural(exp,'год','года','лет')}`; }
+function dealCards(n){
+  const decks={}; for(const k of Object.keys(POOLS)) decks[k]=shuffle(POOLS[k]);
+  const funDecks={}; for(const k of Object.keys(FUN)) funDecks[k]=shuffle(FUN[k]);
+  // кому достанется смешной вариант в каждой категории: 2–3 разных игрока
+  const funFor={}; for(const k of Object.keys(FUN)) funFor[k]=new Set(shuffle([...Array(n).keys()]).slice(0,Math.min(n,randInt(2,3))));
+  const dogs=shuffle(DOG_BIO); let dogI=0;
+  const dogDecks={}; for(const k of Object.keys(DOG)) dogDecks[k]=shuffle(DOG[k]);
+  return Array.from({length:n},(_,i)=>{
+    const bio=genBio();
+    const special=decks.special[i%decks.special.length];
+    if(dogI<dogs.length && Math.random()<1/8){
+      const d=dogI++; const g=k=>dogDecks[k][d%dogDecks[k].length];
+      return { bio:dogs[d], prof:g('prof'), health:g('health'), hobby:g('hobby'), phobia:g('phobia'), trait:g('trait'), baggage:g('baggage'), fact:g('fact'), special };
+    }
+    const take=(k)=>{ if(funFor[k]&&funFor[k].has(i)){ const d=funDecks[k]; return d[[...funFor[k]].indexOf(i)%d.length]; } return decks[k][i%decks[k].length]; };
+    return { bio:bio.text, prof:genProf(decks.prof[i%decks.prof.length],bio.age), health:take('health'), hobby:take('hobby'), phobia:take('phobia'), trait:take('trait'), baggage:take('baggage'), fact:take('fact'), special };
+  });
+}
+function logEntry(patch,text){ patch['log/'+B.now()+'_'+rid(4)]={t:B.now(),text}; return patch; }
+const RIOT_TEXT='Внимание! Те, кого вы оставили за дверью, выжили. Они нашли укрытие и решили строить свою жизнь снаружи. Но одним им не справиться, им нужен ещё один человек. Сегодня ночью они вскрыли шлюз и ворвались в бункер. Те, кто снаружи, решают, кого забрать с собой: смотрите на открытые характеристики и выбирайте того, кто поможет вам выжить. Те, кто в бункере, голосовать не могут. Можете только убеждать.';
+// кто голосует: в бунте только те, кто вне бункера; обычно только те, кто в игре
+const canVote = (v,p) => !!p && (v?.riot ? !!p.out : !p.out);
+const votersOf = room => playersOf(room).filter(p=>canVote(room.meta.vote,p));
+function tally(room){
+  if(room._counts) return Object.fromEntries(Object.entries(room._counts).map(([c,n])=>[c,Array(n).fill('')]));
+  const v=room.meta.vote; const votes=(room.votes&&room.votes[v.id])||{}; const res={};
+  Object.keys(v.candidates||{}).forEach(c=>res[c]=[]);
+  for(const [voter,target] of Object.entries(votes)){ const p=room.players?.[voter]; if(!canVote(v,p)) continue; if(res[target]) res[target].push(voter); }
+  return res;
+}
+const nameOf = (room,id) => room?.players?.[id]?.name || '—';
+
+
+/* ---------------- Тайные связи ---------------- */
+function genderOf(card){ const b=String(card?.bio||''); return b.startsWith('Женщина')?'f':b.startsWith('Мужчина')?'m':'d'; }
+const g=(card,m,f)=>genderOf(card)==='f'?f:m;
+const LINKS=[
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш бывший муж','ваша бывшая жена')}. Расстались со скандалом.`,`${a.name} — ${g(a.card,'ваш бывший муж','ваша бывшая жена')}. Расстались со скандалом.`],
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш муж','ваша жена')}. Вы вместе уже три года.`,`${a.name} — ${g(a.card,'ваш муж','ваша жена')}. Вы вместе уже три года.`],
+ (a,b)=>[`${b.name} ${g(b.card,'должен','должна')} вам 2 миллиона рублей и не отдаёт.`,`Вы должны 2 миллиона рублей игроку ${a.name} и до сих пор не отдали.`],
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш родной брат','ваша родная сестра')}. Вы не общались десять лет.`,`${a.name} — ${g(a.card,'ваш родной брат','ваша родная сестра')}. Вы не общались десять лет.`],
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш бывший начальник','ваша бывшая начальница')}. ${g(b.card,'Уволил','Уволила')} вас без объяснений.`,`Когда-то вы уволили игрока ${a.name} без объяснений.`],
+ (a,b)=>[`${b.name} когда-то ${g(b.card,'спас','спасла')} вам жизнь. Вы ${g(a.card,'обязан','обязана')} ${g(b.card,'ему','ей')}.`,`Когда-то вы спасли жизнь игроку ${a.name}.`],
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш сосед','ваша соседка')} по даче. Вы пять лет судитесь из-за забора.`,`${a.name} — ${g(a.card,'ваш сосед','ваша соседка')} по даче. Вы пять лет судитесь из-за забора.`],
+ (a,b)=>[`Вы тайно влюблены в игрока ${b.name}. ${g(b.card,'Он','Она')} об этом не знает.`,null],
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш лучший друг','ваша лучшая подруга')} детства.`,`${a.name} — ${g(a.card,'ваш лучший друг','ваша лучшая подруга')} детства.`],
+ (a,b)=>[`${b.name} — ${g(b.card,'ваш давний соперник','ваша давняя соперница')}. Вы годами боролись за одну должность.`,`${a.name} — ${g(a.card,'ваш давний соперник','ваша давняя соперница')}. Вы годами боролись за одну должность.`],
+ (a,b)=>[`Игрок ${b.name} знает ваш главный секрет.`,`Вы знаете главный секрет игрока ${a.name}.`]
+];
+const DOG_LINK=(h,d)=>[`${d.name} — ваша собака. Вы не представляете жизни без неё.`,`${h.name} — ${g(h.card,'ваш хозяин','ваша хозяйка')}.`];
+// связи получают не все: примерно одна пара на 5 игроков
+function assignLinks(ps){
+  const n=ps.length; if(n<2) return;
+  let pairs=Math.max(1,Math.round(n/5));
+  const free=shuffle(ps.map((_,i)=>i)); const take=()=>free.length?free.pop():null;
+  const dogs=ps.map((p,i)=>isDog(p.card)?i:-1).filter(i=>i>=0);
+  const used=new Set(); const removeFromFree=i=>{ const k=free.indexOf(i); if(k>=0) free.splice(k,1); };
+  if(dogs.length && Math.random()<0.6){
+    const d=dogs[0]; const humans=free.filter(i=>!isDog(ps[i].card)&&i!==d);
+    if(humans.length){ const h=pick(humans); removeFromFree(d); removeFromFree(h); const [hT,dT]=DOG_LINK(ps[h],ps[d]); ps[h].card.link=hT; ps[d].card.link=dT; pairs--; }
+  }
+  dogs.forEach(removeFromFree);
+  const tpl=shuffle(LINKS);
+  for(let k=0;k<pairs&&free.length>=2;k++){
+    const a=take(), b=take(); const [aT,bT]=tpl[k%tpl.length](ps[a],ps[b]);
+    ps[a].card.link=aT; if(bT) ps[b].card.link=bT;
+  }
+}
+
+/* ---------------- Итог выживания ---------------- */
+const MED_PROF=['Хирург','Терапевт','Медсестра','Стоматолог','Фармацевт','Акушер'];
+const SCEN_KEY={
+ nuclear:{t:'Защита от радиации',w:['Физик-ядерщик','Дозиметр','Противогаз','Метеоролог','Работал на атомной станции']},
+ virus:{t:'Борьба с вирусом',w:['Биолог-генетик','Терапевт','Химик-технолог','Запас антибиотиков','Ветеринар']},
+ ai:{t:'Противостояние машинам',w:['Программист','Системный администратор','Сборка электроники','Радиолюбительство','Инженер-энергетик']},
+ heat:{t:'Вода и жара',w:['Фильтр для воды','Агроном','Геолог','Метеоролог','Лекарственные травы']},
+ ice:{t:'Тепло и холод',w:['Геолог','Плотник','Умеет класть печи','Палатка и спальник','Портативный генератор','Сам построил дом']},
+ asteroid:{t:'Новые посевы',w:['Агроном','Мешок семенной пшеницы','Семена овощей','Геолог','Фермер']},
+ volcano:{t:'Дыхание и пепел',w:['Противогаз','Кислородный баллон','Геолог','Метеоролог','Химик-технолог']},
+ solar:{t:'Жизнь без электричества',w:['Радиолюбительство','Рация','Механическая швейная машинка','Энциклопедия выживания','Библиотекарь','Умеет делать мыло и свечи']},
+ chem:{t:'Защита от яда',w:['Химик-технолог','Противогаз','Химические реактивы','Фильтр для воды']},
+ collapse:{t:'Оборона от банд',w:['Офицер запаса','Полицейский','Ружьё','Арбалет','спецподразделении','Чемпион области по стрельбе']}
+};
+const SEVERE=['диабет','Ослабленное сердце','Алкоголизм','Слабый иммунитет','Язва желудка','Камни в почках','Гипертония','Анемия','Протез','хромает','Перелом'];
+const BUNKER_PHOBIA=['Клаустрофобия','Боязнь темноты','Боязнь подземелий','Боязнь тишины'];
+const CONFLICT=['Конфликтный','Вспыльчивый','Эгоист','манипуляциям','Душнила','Сплетник','Подозрительный','грубости'];
+const LEADER=['лидер','Миротворец','Харизматичный'];
+function epilogue(room,grp,outside){
+  const s=scenarioOf(room); const al=(grp||aliveOf(room)).filter(p=>p.card); const humans=al.filter(p=>!isDog(p.card));
+  const has=(p,cats,words)=>cats.some(c=>words.some(w=>String(p.card[c]||'').includes(w)));
+  const names=ps=>ps.map(p=>p.name).join(', ');
+  const lines=[]; let score=0;
+  const need=(title,ps,ok,bad)=>{ if(ps.length){ score++; lines.push({ok:true,title,text:ok(ps)}); } else lines.push({ok:false,title,text:bad}); };
+  const med=al.filter(p=>has(p,['prof'],MED_PROF)||has(p,['baggage'],['Аптечка','хирургических','антибиотиков'])||has(p,['fact'],['принимать роды','хирургию']));
+  need('Медицина',med,ps=>`Лечить смогут: ${names(ps)}.`,'Врача и лекарств нет. Любая серьёзная болезнь может стать последней.');
+  const food=al.filter(p=>has(p,['prof'],['Агроном','Фермер','Повар','Пекарь','Охотник','Рыбак','Охотничья собака'])||has(p,['hobby'],['Садоводство','Рыбалка','Охота','Пчеловодство','Сыроварение','Лекарственные травы'])||has(p,['baggage'],['Семена','пшеницы','консервов','Курица','Удочки','Улей'])||has(p,['fact'],['Вырос в деревне','рецепты 200']));
+  need('Еда',food,ps=>`Еду будут добывать и готовить: ${names(ps)}.`,'Никто не умеет выращивать или добывать еду. Когда запасы закончатся, начнётся голод.');
+  const tech=al.filter(p=>has(p,['prof'],['Инженер','Электрик','Сантехник','Сварщик','Механик','Строитель','Плотник','Архитектор'])||has(p,['hobby'],['Столярное','Ремонт техники','Сборка электроники','Радиолюбительство'])||has(p,['baggage'],['Набор инструментов','генератор','солнечная панель'])||has(p,['fact'],['двигатели','класть печи','построил дом']));
+  need('Ремонт и техника',tech,ps=>`${outside?'Строить укрытия и чинить будут':'Чинить бункер будут'}: ${names(ps)}.`,outside?'Некому построить надёжное укрытие и починить снаряжение.':'Некому чинить генератор, фильтры и вентиляцию. Первая же поломка станет бедой.');
+  const guard=al.filter(p=>has(p,['prof'],['Офицер запаса','Полицейский','Пожарный','Охотник','Сторожевая собака','Служебная собака'])||has(p,['baggage'],['Ружьё','Арбалет','Топор'])||has(p,['fact'],['спецподразделении','по стрельбе']));
+  need('Защита',guard,ps=>`${outside?'Охранять поселение':'Охранять бункер'} будут: ${names(ps)}.`,outside?'Защищаться нечем и некому. Поселение беззащитно.':'Защищаться нечем и некому. Бункер уязвим для чужаков.');
+  const young=humans.filter(p=>{ const a=parseInt((String(p.card.bio).match(/(\d+)/)||[])[1],10); return a<=45; });
+  const fut=young.some(p=>genderOf(p.card)==='f')&&young.some(p=>genderOf(p.card)==='m');
+  if(fut){ score++; lines.push({ok:true,title:'Будущее',text:'В бункере есть молодые мужчины и женщины. У человечества есть шанс на новое поколение.'}); }
+  else lines.push({ok:false,title:'Будущее',text:'Продолжить род некому. Даже если они выживут, это последнее поколение.'});
+  const key=SCEN_KEY[s.id]; if(key){ const ks=al.filter(p=>has(p,['prof','hobby','baggage','fact'],key.w)); need(key.t,ks,ps=>`Под эту катастрофу пригодятся: ${names(ps)}.`,'Никто не готов именно к этой катастрофе.'); }
+  let sick=al.filter(p=>has(p,['health'],SEVERE));
+  if(s.id==='ice') sick=sick.concat(al.filter(p=>has(p,['health'],['холод'])&&!sick.includes(p)));
+  if(s.id==='heat') sick=sick.concat(al.filter(p=>has(p,['health'],['жару'])&&!sick.includes(p)));
+  if(sick.length){ score-=sick.length>=3?2:1; lines.push({ok:false,title:'Здоровье',text:`Под угрозой: ${sick.map(p=>`${p.name} (${p.card.health.toLowerCase()})`).join(', ')}.${med.length?'':' Лечить их некому.'}`}); }
+  const ph=outside?[]:al.filter(p=>has(p,['phobia'],BUNKER_PHOBIA));
+  if(ph.length){ score--; lines.push({ok:false,title:'Фобии',text:`${names(ph)} ${ph.length>1?'тяжело переносят':'тяжело переносит'} жизнь под землёй: ${ph.map(p=>p.card.phobia.toLowerCase()).join(', ')}.`}); }
+  const cf=al.filter(p=>has(p,['trait'],CONFLICT)); const ld=al.filter(p=>has(p,['trait'],LEADER));
+  if(cf.length>=2){ score--; lines.push({ok:false,title:'Отношения',text:`Будут ссоры: ${cf.map(p=>`${p.name} (${p.card.trait.toLowerCase()})`).join(', ')}.${ld.length?` Мирить всех придётся игроку ${ld[0].name}.`:''}`}); }
+  else if(ld.length) lines.push({ok:true,title:'Отношения',text:`Удерживать команду вместе ${ld.length>1?'будут':'будет'} ${names(ld)}.`});
+  const dogs=al.filter(p=>isDog(p.card)); if(dogs.length) lines.push({ok:true,title:'Собака',text:`${names(dogs)}: поднимает всем настроение и греет по ночам.`});
+  const v= outside
+    ? (score>=4?{k:'ok',t:'Выжили',x:`Поселение снаружи выстояло. Через ${s.time} они встретят тех, кто выйдет из бункера.`}
+      : score>=2?{k:'mid',t:'Выжили с потерями',x:'Снаружи выжили не все, но поселение держится.'}
+      :{k:'bad',t:'Не выжили',x:'Мир за дверью оказался сильнее. Поселение не продержалось.'})
+    : (score>=4?{k:'ok',t:'Выжили',x:`Через ${s.time} двери бункера открываются. Команда готова начать жизнь заново.`}
+      : score>=2?{k:'mid',t:'Выжили с потерями',x:`Через ${s.time} двери открываются, но не все дожили до этого дня.`}
+      :{k:'bad',t:'Не выжили',x:'Бункер не продержался до конца срока. Этой команде не хватило слишком многого.'});
+  return {verdict:v,lines,score};
+}
+
+/* ---------------- Действия ---------------- */
+const A = {
+  async createRoom(scn){
+    let code=''; for(let i=0;i<20;i++){ code=Array.from({length:4},()=> 'ABCDEFGHJKLMNPRSTUVWXYZ'[Math.floor(Math.random()*23)]).join(''); if(!(await B.get(code))) break; }
+    const hostKey=rid(16);
+    await B.update(code,{meta:{scenario:scn,phase:'lobby',round:0,createdAt:B.now(),hostKey,target:0}});
+    LS.set('bunker_host_'+code,hostKey);
+    return code;
+  },
+  async join(code,name){
+    code=(code||'').trim().toUpperCase(); name=(name||'').trim();
+    if(!code) return 'Введите код игры';
+    if(!name) return 'Введите имя';
+    const saved=LS.get('bunker_pid_'+code);
+    S.pendingPid = saved || S.pendingPid || rid(10);
+    const room=await B.get(code,B.mode==='mqtt'?S.pendingPid:undefined);
+    if(!room||!room.meta) return B.mode==='mqtt'?'Не удалось найти игру с таким кодом. Проверьте код. Если код верный, у ведущей должна быть открыта вкладка с игрой.':'Игра с таким кодом не найдена. Проверьте код у ведущей.';
+    if(saved && room.players?.[saved]){ location.hash='play-'+code; return null; }
+    if(room.meta.phase!=='lobby') return 'Игра уже началась, новых участников добавить нельзя.';
+    if(playersOf(room).length>=16) return 'В игре уже 16 участников.';
+    const pid=S.pendingPid;
+    await B.update(code,{['players/'+pid]:{name:name.slice(0,24),joinedAt:B.now()}});
+    LS.set('bunker_pid_'+code,pid); S.joinedAt=Date.now(); setTimeout(()=>render(),10500);
+    location.hash='play-'+code; return null;
+  },
+  upd(patch){ return B.update(S.code,patch); },
+  addBots(n){
+    const room=S.room; const used=new Set(playersOf(room).map(p=>p.name)); const free=BOT_NAMES.filter(x=>!used.has(x));
+    const patch={}; const t=B.now();
+    free.slice(0,Math.min(n,16-playersOf(room).length)).forEach((nm,i)=>{ patch['players/bot_'+rid(6)]={name:nm,joinedAt:t+i,bot:true}; });
+    return A.upd(patch);
+  },
+  removePlayer(pid){ return A.upd({['players/'+pid]:null}); },
+  start(){
+    const room=S.room; const ps=playersOf(room); if(ps.length<2) return flash('Нужно хотя бы 2 участника',true);
+    let target=parseInt(S.draft.target,10); if(!target||target<1||target>=ps.length) target=Math.floor(ps.length/2)||1;
+    const cards=dealCards(ps.length); assignLinks(ps.map((p,i)=>({name:p.name,card:cards[i]}))); const patch={};
+    ps.forEach((p,i)=>{ patch['players/'+p.id+'/card']=cards[i]; patch['players/'+p.id+'/revealed']=null; patch['players/'+p.id+'/out']=null; patch['players/'+p.id+'/specialState']=null; });
+    Object.assign(patch,{'meta/phase':'game','meta/round':1,'meta/target':target,'meta/startedAt':B.now(),'meta/timer':null,'meta/vote':null});
+    logEntry(patch,`Игра началась. Сценарий: ${scenarioOf(room).title}. Мест в бункере: ${target} из ${ps.length}.`);
+    logEntry(patch,'Раунд 1. Все открывают «Биологию» и коротко представляются.');
+    return A.upd(patch);
+  },
+  reveal(pid,cat,byHost){
+    const room=S.room; const p=room.players[pid]; if(!p) return;
+    if(!byHost && !(cat==='link'&&p.card?.link) && !allowedCats(room,{id:pid,...p}).includes(cat)) return flash('Сейчас эту характеристику открыть нельзя',true);
+    const patch={['players/'+pid+'/revealed/'+cat]:true};
+    logEntry(patch,cat==='link'?`${p.name} раскрывает тайную связь: ${p.card.link}`:`${p.name} открывает «${CAT[cat]}»: ${p.card[cat]}`);
+    return A.upd(patch);
+  },
+  hide(pid,cat){ return A.upd({['players/'+pid+'/revealed/'+cat]:null}); },
+  word(pid){ return A.upd({'meta/timer':{kind:'speech',pid,endsAt:B.now()+60000,dur:60000}}); },
+  stopTimer(){ return A.upd({'meta/timer':null}); },
+  nextRound(){ const r=(S.room.meta.round||1)+1; return A.upd(logEntry({'meta/round':r,'meta/timer':null},`Раунд ${r}. Каждый открывает одну характеристику на выбор.`)); },
+  startVote(cands,riot){
+    const ids=cands||aliveOf(S.room).map(p=>p.id); if(ids.length<2) return flash('Для голосования нужно минимум 2 кандидата',true);
+    if(riot && !playersOf(S.room).some(p=>p.out)) return flash('Для бунта нужен хотя бы один игрок вне бункера',true);
+    const id='v'+B.now(); const endsAt=B.now()+120000;
+    const patch={'meta/vote':{id,open:true,endsAt,candidates:Object.fromEntries(ids.map(x=>[x,true])),revote:!!cands,riot:!!riot},'meta/timer':{kind:'vote',endsAt,dur:120000}};
+    const txt=riot?(cands?`Бунт: переголосование между: ${ids.map(x=>nameOf(S.room,x)).join(', ')}.`:'БУНТ! Те, кто остался снаружи, выбирают, кого забрать из бункера. Голосуют только они. 2 минуты.')
+      :(cands?`Переголосование между: ${ids.map(x=>nameOf(S.room,x)).join(', ')}.`:'Голосование открыто. 2 минуты.');
+    return A.upd(logEntry(patch,txt));
+  },
+  vote(voter,target){ const v=S.room.meta.vote; if(!v||!v.open) return; return A.upd({['votes/'+v.id+'/'+voter]:target}); },
+  closeVote(){ if(!S.room.meta.vote) return; return A.upd(logEntry({'meta/vote/open':false,'meta/timer':null},'Голосование закрыто.')); },
+  cancelVote(){ return A.upd(logEntry({'meta/vote':null,'meta/timer':null},'Голосование отменено ведущей.')); },
+  exclude(pid){
+    const room=S.room; const patch={['players/'+pid+'/out']:true,['players/'+pid+'/outRound']:room.meta.round||1,'meta/vote':null};
+    if(room.meta.timer?.pid===pid) patch['meta/timer']=null;
+    if(room.meta.vote?.riot) patch['meta/riotDone']=true;
+    logEntry(patch,room.meta.vote?.riot?`Бунтовщики забирают из бункера игрока ${nameOf(room,pid)}.`:`${nameOf(room,pid)} не попадает в бункер.`);
+    return A.upd(patch);
+  },
+  returnP(pid){ return A.upd(logEntry({['players/'+pid+'/out']:null,['players/'+pid+'/outRound']:null},`${nameOf(S.room,pid)} возвращается в игру.`)); },
+  finish(){
+    const room=S.room; const patch={'meta/phase':'final','meta/timer':null,'meta/vote':null};
+    playersOf(room).forEach(p=>{ CATS.forEach(c=>{ patch['players/'+p.id+'/revealed/'+c.k]=true; }); if(p.card?.link) patch['players/'+p.id+'/revealed/link']=true; });
+    logEntry(patch,`Бункер закрыт. Внутри: ${aliveOf(room).map(p=>p.name).join(', ')}.`);
+    return A.upd(patch);
+  },
+  reroll(pid,cat){
+    const room=S.room; const p=room.players[pid]; if(!p?.card) return; let val;
+    const dog=isDog(p.card);
+    if(cat==='bio'){ val=dog?pick(DOG_BIO.filter(x=>x!==p.card.bio)):genBio().text; }
+    else if(dog && DOG[cat]){ const used=playersOf(room).map(x=>x.card?.[cat]); const free=DOG[cat].filter(v=>!used.includes(v)); val=pick(free.length?free:DOG[cat]); }
+    else{
+      const poolKey=cat; const used=playersOf(room).map(x=>x.card?.[cat]||'');
+      const pool=POOLS[poolKey].concat(FUN[poolKey]||[]); const free=pool.filter(v=>!used.some(u=>u===v||u.startsWith(v+' ·')));
+      const base=pick(free.length?free:pool);
+      if(cat==='prof'){ const age=parseInt((p.card.bio.match(/(\d+)/)||[])[1],10)||30; val=genProf(base,age); } else val=base;
+    }
+    const patch={['players/'+pid+'/card/'+cat]:val};
+    if(cat==='special') patch['players/'+pid+'/specialState']=null;
+    const shown=p.revealed?.[cat];
+    logEntry(patch,`Ведущая заменила «${cat==='special'?'Особое условие':CAT[cat]}» игроку ${p.name}${shown?': теперь '+val:''}.`);
+    return A.upd(patch);
+  },
+  swap(a,b,cat){
+    const room=S.room; const pa=room.players[a], pb=room.players[b]; if(!pa?.card||!pb?.card||a===b) return flash('Выберите другого игрока',true);
+    const patch={['players/'+a+'/card/'+cat]:pb.card[cat],['players/'+b+'/card/'+cat]:pa.card[cat]};
+    logEntry(patch,`${pa.name} и ${pb.name} меняются характеристикой «${CAT[cat]}».`);
+    return A.upd(patch);
+  },
+  requestSpecial(pid){ return A.upd({['players/'+pid+'/specialState']:'pending'}); },
+  approveSpecial(pid){ const p=S.room.players[pid]; return A.upd(logEntry({['players/'+pid+'/specialState']:'used'},`${p.name} применяет особое условие: ${p.card.special}`)); },
+  rejectSpecial(pid){ return A.upd({['players/'+pid+'/specialState']:null}); },
+  botsReveal(){
+    const room=S.room; const patch={};
+    aliveOf(room).filter(p=>p.bot).forEach(p=>{ const al=allowedCats(room,p); if(!al.length) return; const c=pick(al); patch['players/'+p.id+'/revealed/'+c]=true; logEntry(patch,`${p.name} открывает «${CAT[c]}»: ${p.card[c]}`); });
+    if(!Object.keys(patch).length) return flash('Боты уже открыли всё, что можно в этом раунде');
+    return A.upd(patch);
+  },
+  botsVote(){
+    const room=S.room; const v=room.meta.vote; if(!v?.open) return; const votes=room.votes?.[v.id]||{}; const cands=Object.keys(v.candidates||{}); const patch={};
+    votersOf(room).filter(p=>p.bot&&!votes[p.id]).forEach(p=>{ const opts=cands.filter(c=>c!==p.id); if(opts.length) patch['votes/'+v.id+'/'+p.id]=pick(opts); });
+    if(Object.keys(patch).length) return A.upd(patch);
+  },
+  async launchDemo(){
+    const code=await A.createRoom('ai'); S.code=code;
+    const patch={}; const t=B.now();
+    BOT_NAMES.slice(0,8).forEach((nm,i)=>{ patch['players/bot_'+rid(6)]={name:nm,joinedAt:t+i,bot:true}; });
+    await B.update(code,patch);
+    location.hash='host-'+code;
+  }
+};
+
+/* ---------------- Роутинг ---------------- */
+function connect(code){
+  if(S.unsub) S.unsub(); S.code=code; S.room=null; S.missing=false;
+  S.unsub=B.watch(code,room=>{ S.room=room; S.missing=!room; render(); },{role:S.role,pid:S.pid});
+}
+function route(){
+  const h=decodeURIComponent(location.hash.slice(1));
+  const m=h.match(/^(host|play|join)-([A-Za-z]{4})$/);
+  S.hostSel=null; S.demoAs=null; S.joinErr=null;
+  if(h==='create'){ S.screen='create'; S.role=null; if(S.unsub){S.unsub();S.unsub=null;} return render(); }
+  if(!m){ S.screen='home'; S.role=null; if(S.unsub){S.unsub();S.unsub=null;} return render(); }
+  const kind=m[1], code=m[2].toUpperCase();
+  if(kind==='host'){ S.screen='room'; S.role='host'; connect(code); return; }
+  if(kind==='play'){ const pid=LS.get('bunker_pid_'+code); if(!pid){ S.screen='join'; S.draft.code=code; return render(); } S.screen='room'; S.role='player'; S.pid=pid; connect(code); return; }
+  S.screen='join'; S.draft.code=code; render();
+}
+
+/* ---------------- Отрисовка ---------------- */
+function timerHTML(t){
+  if(!t) return '';
+  const left=Math.max(0,t.endsAt-B.now());
+  return `<div class="timer ${left===0?'done':left<10000?'low':''}" data-ends="${t.endsAt}" data-dur="${t.dur}"><span class="t-num">${left>0?fmt(left):'Время вышло'}</span><span class="t-bar"><i style="width:${left/t.dur*100}%"></i></span></div>`;
+}
+function scenarioHTML(s,target,total,open){
+  return `<details class="panel scn" ${open?'open':''}><summary class="stack" style="gap:6px"><span class="label">Сценарий · нажмите, чтобы ${open?'свернуть':'развернуть'}</span><h2>${esc(s.title)}</h2></summary>
+  <p>${esc(s.text)}</p>
+  <div class="brief"><div><span class="label">Срок в бункере</span><p>${esc(s.time)}</p></div><div><span class="label">На поверхности</span><p>${esc(s.surface)}</p></div><div><span class="label">В бункере</span><p>${esc(s.bunker)}</p></div>${target?`<div><span class="label">Мест</span><p>${target} из ${total}</p></div>`:''}</div></details>`;
+}
+function logHTML(room){
+  const items=Object.values(room.log||{}).sort((a,b)=>b.t-a.t).slice(0,40);
+  return `<div class="panel tight"><span class="label">Журнал объекта</span><div class="log">${items.length?items.map(e=>`<div><time>${clock(e.t)}</time><span>${esc(e.text)}</span></div>`).join(''):'<span class="muted">Пока пусто</span>'}</div></div>`;
+}
+function netChip(){
+  const n=B.status?B.status():null; if(!n) return '';
+  if(!n.ok) return '<span class="chip bad">нет связи, переподключаюсь</span>';
+  return S.role==='host'?`<span class="chip ok">онлайн: ${n.peers}</span>`:'<span class="chip ok">связь есть</span>';
+}
+function barHTML(room){
+  const m=room.meta; const s=scenarioOf(room); const ps=playersOf(room); const al=aliveOf(room);
+  const phase=m.phase==='lobby'?'Сбор участников':m.phase==='final'?'Бункер закрыт':`Раунд ${m.round}`;
+  return `<header class="bar"><div class="row"><span class="brand">БУНКЕР</span><span class="chip">${esc(S.code)}</span>${B.mode==='local'?'<span class="chip on">демо</span>':netChip()}</div>
+  <div class="stats">${m.phase!=='lobby'?`<div class="stat"><span class="label">Сценарий</span><b style="font-size:18px">${esc(s.title)}</b></div>`:''}<div class="stat"><span class="label">Этап</span><b style="font-size:18px">${phase}</b></div>${m.phase==='lobby'?`<div class="stat"><span class="label">Участников</span><b>${ps.length}/16</b></div>`:`<div class="stat"><span class="label">В игре</span><b>${al.length}</b></div><div class="stat"><span class="label">Мест</span><b>${m.target}</b></div>`}</div></header>`;
+}
+function voteResultsHTML(room,host){
+  const v=room.meta.vote; const res=tally(room); const max=Math.max(1,...Object.values(res).map(a=>a.length));
+  const lead=Math.max(0,...Object.values(res).map(a=>a.length));
+  const rows=Object.entries(res).sort((a,b)=>b[1].length-a[1].length).map(([c,vs])=>`<div class="tl ${vs.length===lead&&lead>0?'lead':''}"><span>${esc(nameOf(room,c))}</span><span class="n">${vs.length}</span><span class="tbar"><i style="width:${vs.length/max*100}%"></i></span>${host&&vs.length?`<span class="who-voted">${vs.map(x=>esc(nameOf(room,x))).join(', ')}</span>`:''}</div>`).join('');
+  return `<div class="tally">${rows}</div>`;
+}
+
+function render(){
+  const a=document.activeElement; const fid=a&&a.id; let ss=null,se=null; try{ ss=a.selectionStart; se=a.selectionEnd; }catch(e){}
+  let html='';
+  if(!B) html='<p class="muted">Подключаюсь к сети…</p>';
+  else if(S.screen==='home') html=homeHTML();
+  else if(S.screen==='create') html=createHTML();
+  else if(S.screen==='join') html=joinHTML();
+  else if(S.screen==='room') html=roomHTML();
+  if(S.flash) html+=`<div class="flash ${S.flash.bad?'bad':''}" role="status">${esc(S.flash.text)}</div>`;
+  document.getElementById('app').innerHTML=html;
+  if(fid){ const el=document.getElementById(fid); if(el){ el.focus(); try{ if(ss!=null) el.setSelectionRange(ss,se); }catch(e){} } }
+}
+
+function homeHTML(){
+  return `<section class="home-hero"><div class="hazard" style="max-width:220px"></div><h1>Бункер</h1>
+  <p style="max-width:60ch;font-size:17px">Командная игра на выживание до 16 человек. Катастрофа уже случилась, мест в убежище хватит только половине. У каждого есть личное дело, и его придётся защищать.</p></section>
+  ${B.mode==='local'?`<div class="demo-note stack" style="margin-bottom:16px;gap:6px"><b>Демо-режим</b><span class="muted">Сеть для игры недоступна (так бывает в предпросмотре), поэтому игра работает только в этом браузере. На сайте игра подключится к сети сама. Запустите демо: в комнате уже будут 8 тестовых участников, а вы сможете посмотреть игру и их глазами.</span><div><button class="btn primary" data-act="demo">Запустить демо на 8 человек</button></div></div>`:''}
+  <div class="home-grid">
+    <div class="panel"><span class="label">Ведущая</span><h2>Создать игру</h2><p class="muted">Выберите сценарий и получите код и ссылку для участников.</p><div><button class="btn primary big" data-act="go-create">Создать игру</button></div></div>
+    <div class="panel"><span class="label">Участник</span><h2>Войти по коду</h2>${joinFormHTML()}</div>
+  </div>`;
+}
+function joinFormHTML(){
+  return `<form class="stack" data-form="join"><div class="row"><label class="label" for="j-code" style="width:100%">Код игры</label><input id="j-code" class="code" type="text" maxlength="4" autocomplete="off" value="${esc(S.draft.code||'')}" placeholder="ABCD"></div>
+  <div class="stack" style="gap:6px"><label class="label" for="j-name">Ваше имя</label><input id="j-name" type="text" maxlength="24" autocomplete="name" value="${esc(S.draft.name||'')}" placeholder="Как вас называть в игре"></div>
+  ${S.joinErr?`<p style="color:var(--danger)">${esc(S.joinErr)}</p>`:''}
+  <div><button class="btn primary" type="submit">Войти в игру</button></div></form>`;
+}
+function joinHTML(){
+  return `<header class="bar"><span class="brand">БУНКЕР</span><button class="btn ghost sm" data-act="home">На главную</button></header>
+  <div style="max-width:460px" class="panel"><h2>Вход в игру</h2>${joinFormHTML()}</div>`;
+}
+function createHTML(){
+  const sel=S.scenario||SCENARIOS[0].id; const s=SCENARIOS.find(x=>x.id===sel);
+  return `<header class="bar"><span class="brand">БУНКЕР</span><button class="btn ghost sm" data-act="home">На главную</button></header>
+  <div class="stack" style="gap:16px"><div class="stack" style="gap:4px"><span class="label">Шаг 1 из 2</span><h2>Выберите сценарий</h2></div>
+  <div class="scen-grid">${SCENARIOS.map((x,i)=>`<button class="scen ${x.id===sel?'sel':''}" data-act="pick-scn" data-id="${x.id}"><span class="n">СЦЕНАРИЙ ${String(i+1).padStart(2,'0')}</span><strong>${esc(x.title)}</strong><span class="muted" style="font-size:13px">Срок: ${esc(x.time)}</span></button>`).join('')}</div>
+  ${scenarioHTML(s,0,0,true)}
+  <div class="row"><button class="btn primary big" data-act="create">Создать комнату</button><span class="muted">Участники увидят сценарий, когда вы начнёте игру.</span></div></div>`;
+}
+
+function roomHTML(){
+  const room=S.room;
+  if(S.missing) return `<header class="bar"><span class="brand">БУНКЕР</span></header><div class="banner bad stack"><b>${S.role==='player'&&B.mode==='mqtt'?'Не удаётся связаться с игрой '+esc(S.code):'Игра '+esc(S.code)+' не найдена'}</b><span class="muted">${S.role==='player'&&B.mode==='mqtt'?'Проверьте код. Если он верный, попросите ведущую открыть вкладку с игрой. Переподключаюсь автоматически.':'Проверьте код или ссылку. Панель ведущей открывается в том браузере, где создана игра.'}</span><div><button class="btn" data-act="home">На главную</button></div></div>`;
+  if(!room) return '<p class="muted">Подключаюсь к игре…</p>';
+  if(S.role==='host'){
+    if(LS.get('bunker_host_'+S.code)!==room.meta.hostKey) return `<header class="bar"><span class="brand">БУНКЕР</span></header><div class="banner bad stack"><b>Панель ведущей открывается только в том браузере, где создана игра.</b><div><button class="btn" data-act="home">На главную</button></div></div>`;
+    if(S.demoAs && room.players?.[S.demoAs]) return playerHTML(room,S.demoAs,true);
+    return hostHTML(room);
+  }
+  return playerHTML(room,S.pid,false);
+}
+
+/* ----- ведущая ----- */
+function hostHTML(room){
+  const m=room.meta; let main='', side='';
+  if(m.phase==='lobby'){
+    const ps=playersOf(room); const link=location.href.split('#')[0]+'#join-'+S.code;
+    main=`<div class="panel codebox"><div class="hazard"></div><span class="label">Код для входа</span><div class="code-big">${esc(S.code)}</div>
+      <label class="label" for="h-link">Ссылка для участников</label><div class="linkrow"><input id="h-link" type="text" readonly value="${esc(link)}"><button class="btn" data-act="copy">Скопировать</button></div>
+      ${B.mode==='local'?'<span class="muted" style="font-size:13px">В демо-режиме ссылка работает только в этом браузере.</span>':'<span class="muted" style="font-size:13px">Не закрывайте эту вкладку до конца игры: игра идёт через неё. Если случайно закрыли или обновили, откройте её снова в этом же браузере, всё сохранится.</span>'}</div>
+      <div class="panel"><div class="row"><h2 class="grow">Участники · ${ps.length}</h2>${B.mode==='local'?`<button class="btn sm" data-act="bots-add" ${ps.length>=16?'disabled':''}>+ Тестовый участник</button>`:''}</div>
+      ${ps.length?`<div class="people">${ps.map(p=>`<div class="person"><div class="nm"><b>${esc(p.name)}</b><button class="btn ghost sm" data-act="kick" data-pid="${p.id}" aria-label="Удалить ${esc(p.name)}">Удалить</button></div></div>`).join('')}</div>`:'<p class="muted">Пока никого. Отправьте участникам код или ссылку.</p>'}</div>`;
+    const def=Math.floor(ps.length/2)||1;
+    side=`${scenarioHTML(scenarioOf(room),0,0,false)}<div class="panel"><span class="label">Перед стартом</span>
+      <div class="stack" style="gap:6px"><label for="h-target">Мест в бункере</label><input id="h-target" type="number" min="1" max="15" value="${esc(S.draft.target||def)}" style="width:8ch"><span class="muted" style="font-size:13px">По умолчанию половина участников: ${def}.</span></div>
+      <button class="btn primary big" data-act="start" ${ps.length<2?'disabled':''}>Начать игру</button></div>`;
+    return barHTML(room)+`<div class="host-grid"><div class="stack" style="gap:18px">${main}</div><div class="stack" style="gap:18px">${side}</div></div>`;
+  }
+
+  const ps=playersOf(room); const al=aliveOf(room);
+  const pend=ps.filter(p=>p.specialState==='pending');
+  const t=m.timer;
+  const full=al.length<=m.target;
+
+  // таблица
+  const table=`<div class="tbl-wrap"><table class="dossiers"><thead><tr><th>Игрок</th>${CATS.map(c=>`<th>${c.t}</th>`).join('')}<th>Тайная связь</th><th>Особое условие</th></tr></thead><tbody>
+  ${ps.map(p=>`<tr class="${p.out?'out':''} ${S.hostSel===p.id?'sel':''} ${t?.kind==='speech'&&t.pid===p.id?'speaking':''}">
+    <td><button class="pname" data-act="sel" data-pid="${p.id}">${esc(p.name)}<small>${p.out?'вне бункера':'открыто '+revCount(p)+'/8'}</small></button></td>
+    ${CATS.map(c=>{ const r=p.revealed?.[c.k]; return `<td><button class="cell ${r?'revealed':'hidden'}" data-act="cell" data-pid="${p.id}" data-cat="${c.k}" title="${r?'Нажмите, чтобы снова скрыть':'Нажмите, чтобы открыть всем'}">${esc(p.card?.[c.k])}</button></td>`; }).join('')}
+    <td>${p.card?.link?`<button class="cell ${p.revealed?.link?'revealed':'hidden'}" data-act="cell" data-pid="${p.id}" data-cat="link" title="${p.revealed?.link?'Нажмите, чтобы снова скрыть':'Нажмите, чтобы открыть всем'}">${esc(p.card.link)}</button>`:'<div class="cell muted" style="cursor:default">—</div>'}</td>
+    <td><div class="cell" style="cursor:default">${esc(p.card?.special)}<br>${p.specialState==='used'?'<span class="chip ok">применено</span>':p.specialState==='pending'?'<span class="chip on">ждёт решения</span>':''}</div></td>
+  </tr>`).join('')}</tbody></table></div>
+  <div class="legend"><span><i class="sw" style="box-shadow:inset 0 0 0 1px var(--ok)"></i>открыто всем</span><span><i class="sw" style="background:var(--line)"></i>видите только вы</span><span>Нажмите на ячейку, чтобы открыть или скрыть. Нажмите на имя, чтобы управлять игроком.</span></div>`;
+
+  // выбранный игрок
+  let selHTML='';
+  const sp=S.hostSel&&room.players?.[S.hostSel]?{id:S.hostSel,...room.players[S.hostSel]}:null;
+  if(sp&&m.phase==='game'){
+    const others=ps.filter(x=>x.id!==sp.id);
+    selHTML=`<div class="panel tools"><div class="row"><h3 class="grow">${esc(sp.name)}</h3><button class="btn ghost sm" data-act="sel" data-pid="">Закрыть</button></div>
+      <div class="row">${!sp.out?`<button class="btn primary sm" data-act="word" data-pid="${sp.id}">Дать слово · 1:00</button>`:''}${sp.out?`<button class="btn sm" data-act="return" data-pid="${sp.id}">Вернуть в игру</button>`:`<button class="btn danger sm" data-act="exclude" data-pid="${sp.id}">Исключить</button>`}${B.mode==='local'?`<button class="btn sm" data-act="view-as" data-pid="${sp.id}">Экран игрока</button>`:''}</div>
+      <span class="label">Заменить характеристику</span><div class="row"><select id="rr-cat">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}<option value="special">Особое условие</option></select><button class="btn sm" data-act="reroll" data-pid="${sp.id}">Заменить</button></div>
+      <span class="label">Обменяться с другим игроком</span><div class="row"><select id="sw-cat">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select><select id="sw-to">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select><button class="btn sm" data-act="swap" data-pid="${sp.id}">Обменять</button></div></div>`;
+  }
+
+  // боковая
+  let vote='';
+  const v=m.vote;
+  if(m.phase==='game'){
+    if(!v){
+      const outs=ps.filter(p=>p.out);
+      vote=`<div class="panel"><span class="label">Голосование</span><p class="muted">Голосуют все, кто ещё в игре. Голос тайный, вы видите, кто за кого.</p><button class="btn primary" data-act="vote-start" ${al.length<2?'disabled':''}>Начать голосование · 2:00</button></div>
+      <div class="panel riot"><span class="label">Бунт</span><p class="muted">Те, кто вне бункера, выбирают, кого забрать из бункера. Голосуют только они. Лучше в середине игры.</p><button class="btn danger" data-act="riot" ${!outs.length||al.length<2?'disabled':''}>Начать бунт · 2:00</button>${outs.length?'':'<span class="muted" style="font-size:13px">Станет доступно, когда кто-то будет исключён.</span>'}</div>`;
+    } else if(v.open){
+      const votes=room.votes?.[v.id]||{}; const vs=votersOf(room); const notYet=vs.filter(p=>!votes[p.id]);
+      vote=`<div class="panel ${v.riot?'riot':''}"><div class="row"><span class="label grow">${v.riot?'Идёт бунт · голосуют те, кто вне бункера':'Идёт голосование'}${v.revote?' · переголосование':''}</span><span class="chip">${vs.length-notYet.length}/${vs.length}</span></div>${v.riot&&!v.revote?'<p class="riot-text">'+RIOT_TEXT+'</p>':''}
+        ${timerHTML(t&&t.kind==='vote'?t:{endsAt:v.endsAt,dur:120000})}
+        ${voteResultsHTML(room,true)}
+        ${notYet.length?`<p class="muted" style="font-size:13px">Не проголосовали: ${notYet.map(p=>esc(p.name)).join(', ')}</p>`:''}
+        <div class="row"><button class="btn primary" data-act="vote-close">Завершить голосование</button><button class="btn ghost sm" data-act="vote-cancel">Отменить</button>${B.mode==='local'?'<button class="btn sm" data-act="bots-vote">Боты голосуют</button>':''}</div></div>`;
+    } else {
+      const res=tally(room); const lead=Math.max(0,...Object.values(res).map(a=>a.length)); const leaders=Object.keys(res).filter(k=>res[k].length===lead&&lead>0);
+      vote=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,true)}
+        ${lead===0?'<p class="muted">Никто не проголосовал.</p>':leaders.length>1?`<p>Ничья: ${leaders.map(x=>esc(nameOf(room,x))).join(', ')}. Решите сами или запустите переголосование.</p>`:''}
+        <div class="row">${leaders.map(x=>`<button class="btn danger sm" data-act="exclude" data-pid="${x}">${v.riot?'Забрать из бункера':'Исключить'}: ${esc(nameOf(room,x))}</button>`).join('')}</div>
+        <div class="row">${leaders.length>1?`<button class="btn sm" data-act="revote" data-ids="${leaders.join(',')}" data-riot="${v.riot?1:''}">Переголосовать между лидерами</button>`:''}<button class="btn ghost sm" data-act="vote-cancel">${v.riot?'Никого не забирать':'Никого не исключать'}</button></div></div>`;
+    }
+  }
+  const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">Слово у игрока</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}<div><button class="btn sm" data-act="stop">Остановить таймер</button></div></div>`:'';
+  const requests=pend.length?`<div class="panel banner stack">${pend.map(p=>`<div class="stack" style="gap:6px"><b>${esc(p.name)} хочет применить особое условие</b><span>${esc(p.card.special)}</span><div class="row"><button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">Подтвердить</button><button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">Отклонить</button></div></div>`).join('')}</div>`:'';
+  const control=m.phase==='game'?`<div class="panel"><span class="label">Раунд ${m.round}</span>
+    <p class="muted" style="font-size:13px">Игроки открывают характеристики сами в любой момент. Что открывать в этом раунде, договариваетесь устно.</p>
+    <div class="row"><button class="btn" data-act="next-round">Следующий раунд</button>${B.mode==='local'?'<button class="btn sm" data-act="bots-reveal">Боты открывают</button>':''}</div>
+    ${full?`<div class="banner stack" style="gap:8px"><b>Бункер укомплектован: ${al.length} из ${m.target} мест.</b><button class="btn primary" data-act="finish">Завершить игру</button></div>`:`<span class="muted" style="font-size:13px">Нужно исключить ещё ${al.length-m.target}.</span>`}</div>`:'';
+  const demo=B.mode==='local'?`<div class="panel tight"><span class="label">Демо</span><div class="row"><select id="va-pid">${ps.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn sm" data-act="view-as-sel">Смотреть глазами игрока</button></div></div>`:'';
+
+  if(m.phase==='final') return barHTML(room)+finalHTML(room,true);
+
+  return barHTML(room)+`<div class="host-grid"><div class="stack" style="gap:14px">${scenarioHTML(scenarioOf(room),m.target,ps.length,false)}${table}${selHTML}</div>
+  <div class="stack" style="gap:14px">${requests}${speaker}${control}${vote}${demo}${logHTML(room)}</div></div>`;
+}
+
+function finalHTML(room,host){
+  const ps=playersOf(room); const al=ps.filter(p=>!p.out); const out=ps.filter(p=>p.out);
+  const card=p=>`<div class="person ${p.out?'out':''}"><div class="nm"><b>${esc(p.name)}</b>${p.out?'<span class="chip bad">вне бункера</span>':'<span class="chip ok">в бункере</span>'}</div><div class="traits">${CATS.map(c=>`<div><span class="k">${c.t}</span>${esc(p.card?.[c.k])}</div>`).join('')}${p.card?.link?`<div><span class="k">Тайная связь</span>${esc(p.card.link)}</div>`:''}</div></div>`;
+  const epBlock=(ep,label)=>`<div class="panel epi epi-${ep.verdict.k}"><span class="label">${label}</span><div class="verdict">${esc(ep.verdict.t)}</div><p>${esc(ep.verdict.x)}</p>
+    <div class="epi-lines">${ep.lines.map(l=>`<div class="epi-line"><span class="chip ${l.ok?'ok':'bad'}">${l.ok?'есть':'риск'}</span><div><b>${esc(l.title)}</b><p>${esc(l.text)}</p></div></div>`).join('')}</div></div>`;
+  const epHTML=epBlock(epilogue(room),'Итог выживания · бункер')+(room.meta.riotDone&&out.length?epBlock(epilogue(room,out,true),'Итог выживания · поселение снаружи'):'');
+  return `<div class="stack" style="gap:18px"><div class="panel"><div class="hazard"></div><h2 style="font-size:30px">Бункер закрыт</h2><p>Сценарий «${esc(scenarioOf(room).title)}». В убежище ${al.length} ${plural(al.length,'человек','человека','человек')}. Обсудите вместе: смогут ли они выжить ${esc(scenarioOf(room).time)} и восстановить жизнь на поверхности?</p>
+  ${host?`<div class="row"><button class="btn primary" data-act="go-create">Новая игра</button></div>`:''}</div>
+  ${epHTML}
+  <h3>В бункере</h3><div class="final-grid">${al.map(card).join('')}</div>
+  ${out.length?`<h3>Не попали в бункер</h3><div class="final-grid">${out.map(card).join('')}</div>`:''}
+  ${logHTML(room)}</div>`;
+}
+
+/* ----- игрок ----- */
+function playerHTML(room,pid,demo){
+  const m=room.meta; const me=room.players?.[pid]?{id:pid,...room.players[pid]}:null; const ps=playersOf(room);
+  const demoBar=demo?`<div class="demo-bar"><span>Демо: вы смотрите глазами <b>${esc(me?.name)}</b></span><div class="row"><select id="va-pid">${ps.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button class="btn sm" data-act="view-as-sel">Переключить</button><button class="btn primary sm" data-act="view-host">Панель ведущей</button></div></div>`:'';
+  if(!me && Date.now()-(S.joinedAt||0)<10000) return barHTML(room)+'<p class="muted">Подключаюсь к игре…</p>';
+  if(!me){
+    return barHTML(room)+`<div class="banner bad stack"><b>Вас нет в списке участников</b><span class="muted">Возможно, ведущая удалила вас из лобби. Войдите снова.</span><div><button class="btn" data-act="rejoin">Войти заново</button></div></div>`;
+  }
+  if(m.phase==='lobby'){
+    return demoBar+barHTML(room)+`<div class="panel" style="max-width:640px"><div class="hazard"></div><span class="label">Вы в списке</span><h2>${esc(me.name)}, ждём начала</h2><p class="muted">Сценарий и ваше личное дело появятся, когда ведущая начнёт игру.</p>
+      <div class="people">${ps.map(p=>`<div class="person"><b>${esc(p.name)}</b></div>`).join('')}</div></div>`;
+  }
+  if(m.phase==='final') return demoBar+barHTML(room)+finalHTML(room,false);
+
+  const t=m.timer; const v=m.vote; const al=aliveOf(room);
+  const allowed=allowedCats(room,me);
+  const hint=me.out?'Вы не попали в бункер и наблюдаете за игрой.':allowed.length?'Все характеристики видите только вы. Назвали характеристику в обсуждении — нажмите «Открыть», и её сразу увидят все на общем экране.':'Вы открыли все характеристики.';
+
+  const dossier=`<div class="dossier"><div class="head"><h2>${esc(me.name)}</h2><span class="no">ЛИЧНОЕ ДЕЛО<br>№ ${String(ps.findIndex(p=>p.id===pid)+1).padStart(2,'0')} · ${esc(S.code)}</span></div>
+    <p style="font-size:13px;color:#5d6056;padding-bottom:6px">${esc(hint)}</p>
+    ${CATS.map(c=>{ const r=me.revealed?.[c.k]; const can=allowed.includes(c.k); return `<div class="field"><span class="k">${c.t}</span><span class="v">${esc(me.card?.[c.k])}</span><span class="act">${r?'<span class="stamp open">открыто</span>':can?`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="${c.k}">Открыть</button>`:'<span class="stamp closed">скрыто</span>'}</span></div>`; }).join('')}
+    ${me.card?.link?`<div class="special"><span class="k" style="font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:#5d6056">ТАЙНАЯ СВЯЗЬ · знаете только вы</span><span>${esc(me.card.link)}</span><div>${me.revealed?.link?'<span class="stamp open">открыто</span>':`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="link">Открыть всем</button> <span style="font-size:12.5px;color:#5d6056">в любой момент, раунд не тратится</span>`}</div></div>`:''}
+    <div class="special"><span class="k" style="font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:#5d6056">ОСОБОЕ УСЛОВИЕ · одно на игру</span><span>${esc(me.card?.special)}</span>
+    <div>${me.specialState==='used'?'<span class="stamp open">применено</span>':me.specialState==='pending'?'<span class="stamp closed">ждёт решения ведущей</span>':me.out?'':`<button class="btn sm" data-act="sp-req" data-pid="${pid}">Применить</button>`}</div></div></div>`;
+
+  let voteBlock='';
+  if(v&&v.open){
+    const myVote=room.votes?.[v.id]?.[pid]; const cands=Object.keys(v.candidates||{}).filter(c=>c!==pid&&room.players[c]);
+    const mayVote=canVote(v,me);
+    voteBlock=`<div class="panel ${v.riot?'riot':''}"><div class="row"><h2 class="grow">${v.riot?'Бунт!':v.revote?'Переголосование':'Голосование'}</h2></div>${v.riot?'<p class="riot-text">'+RIOT_TEXT+'</p>':''}${timerHTML(t&&t.kind==='vote'?t:{endsAt:v.endsAt,dur:120000})}
+      ${!mayVote?`<p class="muted">${v.riot?'Вы в бункере. Сейчас голосуют только те, кто снаружи.':'Вы вне бункера и не голосуете.'}</p>`:`<p class="muted">${v.riot?'Кого забираем из бункера?':'Кого не берём в бункер?'} Голос тайный, его можно изменить до конца голосования.</p><div class="vote-grid">${cands.map(c=>`<button class="vote-opt ${myVote===c?'mine':''}" data-act="vote" data-pid="${pid}" data-target="${c}">${esc(nameOf(room,c))}</button>`).join('')}</div>${myVote?`<p class="muted">Ваш голос: ${esc(nameOf(room,myVote))}</p>`:''}`}</div>`;
+  } else if(v&&!v.open){
+    voteBlock=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,false)}<p class="muted">Ведущая объявит решение.</p></div>`;
+  }
+  const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">${t.pid===pid?'Ваше слово':'Говорит'}</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}</div>`:'';
+  const outBanner=me.out?`<div class="banner bad"><b>Вы не попали в бункер.</b> Можете наблюдать и участвовать в обсуждении.</div>`:'';
+
+  const boardPs=ps.filter(p=>!p.out).concat(ps.filter(p=>p.out));
+  const people=`<div class="stack" style="gap:10px"><div class="row"><h2 class="grow">Общий экран</h2><span class="muted" style="font-size:13px">В игре ${al.length} · мест ${m.target}</span></div><div class="people">${boardPs.map(p=>{
+      const rev=CATS.filter(c=>p.revealed?.[c.k]); const hid=8-rev.length; const speaking=t?.kind==='speech'&&t.pid===p.id;
+      const extra=(p.revealed?.link&&p.card?.link?`<div><span class="k">Тайная связь</span>${esc(p.card.link)}</div>`:'')+(p.specialState==='used'?`<div><span class="k">Особое условие</span>${esc(p.card?.special)}</div>`:'');
+      return `<div class="person ${p.out?'out':''} ${speaking?'speaking':''} ${p.id===pid?'me':''}">${p.out?'<span class="xmark" aria-hidden="true"></span><span class="out-stamp">Не в бункере</span>':''}<div class="nm"><b>${esc(p.name)}${p.id===pid?' <span class="muted" style="font-weight:400">· вы</span>':''}</b>${speaking?'<span class="chip on">говорит</span>':''}</div>
+      <div class="traits">${rev.length||extra?rev.map(c=>`<div><span class="k">${c.t}</span>${esc(p.card?.[c.k])}</div>`).join('')+extra:'<span class="muted" style="font-size:13px">Пока ничего не открыто</span>'}</div>
+      ${hid&&!p.out?`<span class="muted" style="font-size:12.5px"><span class="redact" style="width:${Math.min(hid,8)*9}px"></span> скрыто ещё ${hid}</span>`:''}</div>`; }).join('')}</div></div>`;
+
+  return demoBar+barHTML(room)+`<div class="play-grid"><div class="stack" style="gap:14px">${outBanner}${speaker}${voteBlock}${people}${scenarioHTML(scenarioOf(room),m.target,ps.length,m.round===1)}</div>
+  <div class="stack dossier-col" style="gap:14px">${dossier}${logHTML(room)}</div></div>`;
+}
+
+/* ---------------- События ---------------- */
+const app=document.getElementById('app');
+app.addEventListener('input',e=>{ const id=e.target.id; if(id==='j-code') S.draft.code=e.target.value.toUpperCase(); if(id==='j-name') S.draft.name=e.target.value; if(id==='h-target') S.draft.target=e.target.value; });
+app.addEventListener('submit',async e=>{ e.preventDefault(); if(e.target.dataset.form==='join'){ S.joinErr=null; const err=await A.join(S.draft.code,S.draft.name); if(err){ S.joinErr=err; render(); } } });
+app.addEventListener('click',async e=>{
+  const el=e.target.closest('[data-act]'); if(!el||el.disabled) return;
+  const act=el.dataset.act, pid=el.dataset.pid;
+  try{
+  switch(act){
+    case 'home': location.hash=''; break;
+    case 'go-create': location.hash='create'; break;
+    case 'pick-scn': S.scenario=el.dataset.id; render(); break;
+    case 'create': { const code=await A.createRoom(S.scenario||SCENARIOS[0].id); location.hash='host-'+code; break; }
+    case 'demo': await A.launchDemo(); break;
+    case 'copy': { const inp=document.getElementById('h-link'); try{ await navigator.clipboard.writeText(inp.value); flash('Ссылка скопирована'); }catch(err){ inp.select(); flash('Выделила ссылку, скопируйте её вручную'); } break; }
+    case 'bots-add': await A.addBots(1); break;
+    case 'kick': await A.removePlayer(pid); break;
+    case 'start': await A.start(); break;
+    case 'sel': S.hostSel=pid||null; render(); break;
+    case 'cell': { const p=S.room.players[pid]; if(p.revealed?.[el.dataset.cat]) await A.hide(pid,el.dataset.cat); else await A.reveal(pid,el.dataset.cat,true); break; }
+    case 'word': await A.word(pid); break;
+    case 'stop': await A.stopTimer(); break;
+    case 'next-round': await A.nextRound(); break;
+    case 'vote-start': await A.startVote(); break;
+    case 'revote': await A.startVote(el.dataset.ids.split(','),!!el.dataset.riot); break;
+    case 'riot': await A.startVote(null,true); break;
+    case 'vote-close': await A.closeVote(); break;
+    case 'vote-cancel': await A.cancelVote(); break;
+    case 'exclude': await A.exclude(pid); break;
+    case 'return': await A.returnP(pid); break;
+    case 'finish': await A.finish(); break;
+    case 'reroll': await A.reroll(pid,document.getElementById('rr-cat').value); break;
+    case 'swap': await A.swap(pid,document.getElementById('sw-to').value,document.getElementById('sw-cat').value); break;
+    case 'sp-ok': await A.approveSpecial(pid); break;
+    case 'sp-no': await A.rejectSpecial(pid); break;
+    case 'sp-req': await A.requestSpecial(pid); flash('Запрос отправлен ведущей'); break;
+    case 'reveal': await A.reveal(pid,el.dataset.cat,false); break;
+    case 'vote': await A.vote(pid,el.dataset.target); break;
+    case 'bots-reveal': await A.botsReveal(); break;
+    case 'bots-vote': await A.botsVote(); break;
+    case 'view-as': S.demoAs=pid; render(); window.scrollTo(0,0); break;
+    case 'view-as-sel': S.demoAs=document.getElementById('va-pid').value; render(); window.scrollTo(0,0); break;
+    case 'view-host': S.demoAs=null; render(); break;
+    case 'rejoin': try{ localStorage.removeItem('bunker_pid_'+S.code); }catch(err){} delete MEM['bunker_pid_'+S.code]; location.hash='join-'+S.code; break;
+  }
+  }catch(err){ console.error(err); flash('Не получилось: '+(err.message||'ошибка связи'),true); }
+});
+
+/* таймеры и автозакрытие голосования */
+setInterval(()=>{
+  if(!B) return; const now=B.now();
+  document.querySelectorAll('[data-ends]').forEach(el=>{
+    const ends=+el.dataset.ends, dur=+el.dataset.dur||1; const left=Math.max(0,ends-now);
+    const n=el.querySelector('.t-num'); if(n) n.textContent=left>0?fmt(left):'Время вышло';
+    const bar=el.querySelector('.t-bar i'); if(bar) bar.style.width=(left/dur*100)+'%';
+    el.classList.toggle('done',left===0); el.classList.toggle('low',left>0&&left<10000);
+  });
+  const v=S.room?.meta?.vote;
+  if(S.role==='host'&&v?.open&&now>v.endsAt&&!S.autoClosed[v.id]){ S.autoClosed[v.id]=true; A.closeVote(); }
+},250);
+
+window.addEventListener('hashchange',route);
+(async()=>{
+  render();
+  let online=false; try{ online = typeof WebSocket!=='undefined' && await probeBrokers(6000); }catch(err){ online=false; }
+  B = online ? makeMqtt() : makeLocal();
+  route();
+})();
+</script>
+
+</body>
+</html>
