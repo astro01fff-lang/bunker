@@ -545,11 +545,13 @@ function dealCards(n){
   // кому достанется смешной вариант в каждой категории: 2–3 разных игрока
   const funFor={}; for(const k of Object.keys(FUN)) funFor[k]=new Set(shuffle([...Array(n).keys()]).slice(0,Math.min(n,randInt(2,3))));
   const dogs=shuffle(DOG_BIO); let dogI=0;
+  // собака максимум одна на игру, примерно в 60% игр
+  const dogAt = Math.random()<0.6 ? randInt(0,n-1) : -1;
   const dogDecks={}; for(const k of Object.keys(DOG)) dogDecks[k]=shuffle(DOG[k]);
   return Array.from({length:n},(_,i)=>{
     const bio=genBio();
     const special=decks.special[i%decks.special.length];
-    if(dogI<dogs.length && Math.random()<1/8){
+    if(i===dogAt){
       const d=dogI++; const g=k=>dogDecks[k][d%dogDecks[k].length];
       return { bio:dogs[d], prof:g('prof'), health:g('health'), hobby:g('hobby'), phobia:g('phobia'), trait:g('trait'), baggage:g('baggage'), fact:g('fact'), special };
     }
@@ -589,10 +591,10 @@ const LINKS=[
  (a,b)=>[`Игрок ${b.name} знает ваш главный секрет.`,`Вы знаете главный секрет игрока ${a.name}.`]
 ];
 const DOG_LINK=(h,d)=>[`${d.name} — ваша собака. Вы не представляете жизни без неё.`,`${h.name} — ${g(h.card,'ваш хозяин','ваша хозяйка')}.`];
-// связи получают не все: примерно одна пара на 5 игроков
+// связи получают не все: 1–2 пары на игру
 function assignLinks(ps){
   const n=ps.length; if(n<2) return;
-  let pairs=Math.max(1,Math.round(n/5));
+  let pairs = n>=6 ? randInt(1,2) : 1;  // 1–2 пары на игру
   const free=shuffle(ps.map((_,i)=>i)); const take=()=>free.length?free.pop():null;
   const dogs=ps.map((p,i)=>isDog(p.card)?i:-1).filter(i=>i>=0);
   const used=new Set(); const removeFromFree=i=>{ const k=free.indexOf(i); if(k>=0) free.splice(k,1); };
