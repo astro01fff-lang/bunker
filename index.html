@@ -408,6 +408,8 @@ function viewFor(st,uid){
   return v;
 }
 
+function getPath(o,parts){ for(const k of parts){ if(o==null) return undefined; o=o[k]; } return o; }
+function applied(view,patch){ return Object.entries(patch).every(([k,v])=>{ const g=getPath(view,k.split('/')); return (v&&typeof v==='object')?g!=null:g===v; }); }
 function makeMqtt(){
   const hosts={}, clients={};
   let offset=0; const net={ok:false,peers:0};
@@ -423,7 +425,7 @@ function makeMqtt(){
     BROKERS.forEach(url=>{
       const l={url,mq:null,ok:false}; h.links.push(l);
       const go=async()=>{ const mq=new MQ(url); try{ await mq.connect(8000); }catch(e){ setTimeout(go,l.ok?3000:8000); return; }
-        l.mq=mq; l.ok=true; mq.sub(topicOf(code,'up'),m=>hostMsg(h,l,m)); mq.onclose=()=>{ upd(); setTimeout(go,2500); }; upd(); };
+        l.mq=mq; l.ok=true; mq.sub(topicOf(code,'up'),m=>hostMsg(h,l,m)); mq.onclose=()=>{ upd(); setTimeout(go,2500); }; upd(); mq.pub(topicOf(code,'all'),{t:'host'}); };
       go();
     });
     const upd=()=>{ net.ok=h.links.some(l=>l.mq&&l.mq.open); touch(); };
@@ -470,7 +472,7 @@ function makeMqtt(){
   function clientCtx(code,uid){
     let c=clients[code]; if(c&&c.uid===uid) return c; if(c) c.stop();
     let tok=LS.get('bunker_tok_'+code); if(!tok||tok.length<12){ tok=rid(20); LS.set('bunker_tok_'+code,tok); }
-    c={code,uid,tok,mq:null,view:null,cbs:new Set(),waiters:[],bi:0,stopped:false,lastSnap:0};
+    c={code,uid,tok,mq:null,view:null,cbs:new Set(),waiters:[],bi:0,stopped:false,lastSnap:0,pending:[]};
     clients[code]=c;
     const hi=()=>{ if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'hi',u:uid,k:tok}); };
     const connect=async()=>{
@@ -480,11 +482,12 @@ function makeMqtt(){
         try{ await mq.connect(8000); }catch(e){ c.bi++; continue; }
         c.mq=mq; net.ok=true; touch();
         mq.sub(topicOf(code,'d/'+uid),m=>{
-          if(m.t==='snap'&&m.v){ offset=(m.now||Date.now())-Date.now(); c.view=m.v; c.lastSnap=Date.now(); c.cbs.forEach(cb=>cb(clone(m.v))); c.waiters.splice(0).forEach(f=>f(c.view)); }
+          if(m.t==='snap'&&m.v){ offset=(m.now||Date.now())-Date.now(); c.view=m.v; c.lastSnap=Date.now(); c.pending=c.pending.filter(x=>!applied(m.v,x.patch)); c.cbs.forEach(cb=>cb(clone(m.v))); c.waiters.splice(0).forEach(f=>f(c.view)); }
           if(m.t==='bad'){ flash('Этот браузер уже связан с другим участником. Войдите заново.',true); }
         });
+        mq.sub(topicOf(code,'all'),m=>{ if(m.t==='host'){ hi(); resend(true); } });
         mq.onclose=()=>{ net.ok=false; touch(); setTimeout(connect,2000); };
-        hi();
+        hi(); resend(true);
         // если ведущая не ответила через этот брокер, пробуем следующий
         await new Promise(r=>setTimeout(r,7000));
         if(c.lastSnap||c.stopped) return;
@@ -494,8 +497,11 @@ function makeMqtt(){
       c.cbs.forEach(cb=>cb(null)); c.waiters.splice(0).forEach(f=>f(null));
       if(!c.stopped) setTimeout(connect,5000);
     };
-    c.hb=setInterval(hi,20000);
-    c.stop=()=>{ c.stopped=true; clearInterval(c.hb); try{ c.mq&&c.mq.close(); }catch(e){} };
+    // действие считается доставленным, когда ведущая прислала состояние с ним; до этого повторяем
+    const resend=(all)=>{ const now=Date.now(); c.pending=c.pending.filter(x=>x.tries<8); for(const x of c.pending){ if(!(c.mq&&c.mq.open)) return; if(all||now-x.at>2500){ x.at=now; x.tries++; c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch:x.patch}); } } };
+    c.send=(patch)=>{ c.pending.push({patch,at:Date.now(),tries:0}); if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch}); };
+    c.hb=setInterval(hi,10000); c.rt=setInterval(()=>resend(false),1000);
+    c.stop=()=>{ c.stopped=true; clearInterval(c.hb); clearInterval(c.rt); try{ c.mq&&c.mq.close(); }catch(e){} };
     connect();
     return c;
   }
@@ -511,11 +517,11 @@ function makeMqtt(){
     async get(code,uid){
       if(!uid){ const h=hosts[code]; return h?clone(h.state):null; }
       const c=clientCtx(code,uid); if(c.view) return clone(c.view);
-      return await new Promise(res=>{ c.waiters.push(v=>res(v?clone(v):null)); setTimeout(()=>res(c.view?clone(c.view):null),30000); });
+      return await new Promise(res=>{ c.waiters.push(v=>res(v?clone(v):null)); setTimeout(()=>res(c.view?clone(c.view):null),12000); });
     },
     async update(code,patch){
       const c=clients[code];
-      if(c&&!hosts[code]){ if(!c.mq||!c.mq.open) throw new Error('Нет связи. Подождите, идёт переподключение.'); c.mq.pub(topicOf(code,'up'),{t:'patch',u:c.uid,k:c.tok,patch}); return; }
+      if(c&&!hosts[code]){ c.send(patch); return; }
       const h=hostCtx(code,true); hostApply(h,patch);
     }
   };
@@ -766,6 +772,7 @@ const A = {
   },
   swap(a,b,cat){
     const room=S.room; const pa=room.players[a], pb=room.players[b]; if(!pa?.card||!pb?.card||a===b) return flash('Выберите другого игрока',true);
+    if(isDog(pa.card)!==isDog(pb.card)) return flash('Собака и человек не могут меняться характеристиками',true);
     const patch={['players/'+a+'/card/'+cat]:pb.card[cat],['players/'+b+'/card/'+cat]:pa.card[cat]};
     logEntry(patch,`${pa.name} и ${pb.name} меняются характеристикой «${CAT[cat]}».`);
     return A.upd(patch);
@@ -807,6 +814,8 @@ function route(){
   const kind=m[1], code=m[2].toUpperCase();
   if(kind==='host'){ S.screen='room'; S.role='host'; connect(code); return; }
   if(kind==='play'){ const pid=LS.get('bunker_pid_'+code); if(!pid){ S.screen='join'; S.draft.code=code; return render(); } S.screen='room'; S.role='player'; S.pid=pid; connect(code); return; }
+  // уже входил с этого браузера — сразу в игру, без повторного ввода имени
+  if(LS.get('bunker_pid_'+code)){ location.replace(location.href.split('#')[0]+'#play-'+code); return; }
   S.screen='join'; S.draft.code=code; render();
 }
 
@@ -869,7 +878,7 @@ function joinFormHTML(){
   return `<form class="stack" data-form="join"><div class="row"><label class="label" for="j-code" style="width:100%">Код игры</label><input id="j-code" class="code" type="text" maxlength="4" autocomplete="off" value="${esc(S.draft.code||'')}" placeholder="ABCD"></div>
   <div class="stack" style="gap:6px"><label class="label" for="j-name">Ваше имя</label><input id="j-name" type="text" maxlength="24" autocomplete="name" value="${esc(S.draft.name||'')}" placeholder="Как вас называть в игре"></div>
   ${S.joinErr?`<p style="color:var(--danger)">${esc(S.joinErr)}</p>`:''}
-  <div><button class="btn primary" type="submit">Войти в игру</button></div></form>`;
+  <div class="row"><button class="btn primary" type="submit" ${S.joining?'disabled':''}>${S.joining?'Ищу игру…':'Войти в игру'}</button>${S.joining?'<span class="muted" style="font-size:13px">Подключаюсь, это может занять до 10 секунд</span>':''}</div></form>`;
 }
 function joinHTML(){
   return `<header class="bar"><span class="brand">БУНКЕР</span><button class="btn ghost sm" data-act="home">На главную</button></header>
@@ -994,7 +1003,8 @@ function finalHTML(room,host){
 function playerHTML(room,pid,demo){
   const m=room.meta; const me=room.players?.[pid]?{id:pid,...room.players[pid]}:null; const ps=playersOf(room);
   const demoBar=demo?`<div class="demo-bar"><span>Демо: вы смотрите глазами <b>${esc(me?.name)}</b></span><div class="row"><select id="va-pid">${ps.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${esc(p.name)}</option>`).join('')}</select><button class="btn sm" data-act="view-as-sel">Переключить</button><button class="btn primary sm" data-act="view-host">Панель ведущей</button></div></div>`:'';
-  if(!me && Date.now()-(S.joinedAt||0)<10000) return barHTML(room)+'<p class="muted">Подключаюсь к игре…</p>';
+  if(me){ S.seenMe=S.seenMe||{}; S.seenMe[S.code]=true; }
+  if(!me && !(S.seenMe&&S.seenMe[S.code]) && Date.now()-(S.joinedAt||0)<10000) return barHTML(room)+'<p class="muted">Подключаюсь к игре…</p>';
   if(!me){
     return barHTML(room)+`<div class="banner bad stack"><b>Вас нет в списке участников</b><span class="muted">Возможно, ведущая удалила вас из лобби. Войдите снова.</span><div><button class="btn" data-act="rejoin">Войти заново</button></div></div>`;
   }
@@ -1042,7 +1052,7 @@ function playerHTML(room,pid,demo){
 /* ---------------- События ---------------- */
 const app=document.getElementById('app');
 app.addEventListener('input',e=>{ const id=e.target.id; if(id==='j-code') S.draft.code=e.target.value.toUpperCase(); if(id==='j-name') S.draft.name=e.target.value; if(id==='h-target') S.draft.target=e.target.value; });
-app.addEventListener('submit',async e=>{ e.preventDefault(); if(e.target.dataset.form==='join'){ S.joinErr=null; const err=await A.join(S.draft.code,S.draft.name); if(err){ S.joinErr=err; render(); } } });
+app.addEventListener('submit',async e=>{ e.preventDefault(); if(e.target.dataset.form==='join'){ if(S.joining) return; S.joinErr=null; S.joining=true; render(); let err=null; try{ err=await A.join(S.draft.code,S.draft.name); }catch(x){ err='Не получилось войти: '+(x.message||'ошибка связи'); } S.joining=false; if(err){ S.joinErr=err; } render(); } });
 app.addEventListener('click',async e=>{
   const el=e.target.closest('[data-act]'); if(!el||el.disabled) return;
   const act=el.dataset.act, pid=el.dataset.pid;
