@@ -202,6 +202,57 @@ details.scn summary::-webkit-details-marker{display:none}
 .epi-lines{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 20px}
 .epi-line{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;border-top:1px solid var(--line);padding-top:10px}
 .epi-line p{font-size:14px}
+
+/* экран игрока */
+.play{display:flex;flex-direction:column;gap:16px;max-width:1180px}
+.mc-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.mc-head h2{font-size:20px}
+.mycard{background:var(--paper);color:#23251f;border-radius:4px;padding:16px}
+.mycard h2{color:#23251f}
+.mycard .chip{color:#5d6056;border-color:#b6b09d}
+.mycard .chip.on{background:#23251f;color:var(--paper);border-color:#23251f}
+.mycard .chip.bad{color:#a8402e;border-color:#a8402e}
+.mc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:900px){.mc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.mc-extra{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:8px;margin-top:8px}
+.tile{border:1.5px solid #c9c2ad;border-radius:3px;padding:9px 10px;display:flex;flex-direction:column;gap:4px;min-width:0;background:#f3efe2}
+.tile .k{font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6c6e64}
+.tile .v{font-size:14.5px;line-height:1.3;font-weight:700;flex:1}
+.tile .btn{align-self:flex-start;background:#23251f;color:var(--paper);border-color:#23251f;padding:5px 10px;font-size:12px}
+.tile.is-open{border-color:#5d8a4c;background:#e7efdf}
+.tile .tag{align-self:flex-start;font-family:var(--f-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#4f7340;border:1.5px solid currentColor;padding:1px 6px;border-radius:2px}
+.tile .tag.wait{color:#8a6a1e}
+.board-wrap{min-width:0}
+.board-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:4px;background:var(--panel)}
+table.board{border-collapse:collapse;width:100%;min-width:980px;font-size:13.5px}
+.board th,.board td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.board thead th{font-family:var(--f-mono);font-weight:400;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.board tbody th{font-weight:700;white-space:nowrap}
+.board tbody th .chip{margin-left:6px;font-size:10px;padding:1px 6px}
+.board tr:last-child th,.board tr:last-child td{border-bottom:0}
+.board .dash{color:var(--line)}
+.board tr.me{background:var(--panel-2)}
+.board tr.speaking th{box-shadow:inset 3px 0 0 var(--signal)}
+.board tr.out{opacity:.55}
+.board tr.out .nm{text-decoration:line-through;text-decoration-color:var(--danger);text-decoration-thickness:2px}
+@media (max-width:700px){
+  .board-scroll{overflow:visible;border:0;background:transparent}
+  table.board{min-width:0}
+  .board thead{display:none}
+  .board,.board tbody,.board tr,.board th,.board td{display:block;width:100%}
+  .board tr{background:var(--panel);border:1px solid var(--line);border-radius:4px;margin-bottom:8px;padding:6px 0}
+  .board tbody th{border-bottom:1px solid var(--line);white-space:normal}
+  .board td{border:0;padding:4px 10px;display:grid;grid-template-columns:118px minmax(0,1fr);gap:8px}
+  .board td::before{content:attr(data-k);font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);padding-top:2px}
+  .board td.empty{display:none}
+  .board tr:not(:has(td:not(.empty)))::after{content:"Пока ничего не открыто";display:block;padding:4px 10px;color:var(--muted);font-size:13px}
+}
+.sp-row select{max-width:100%}
+.play .speaker{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px 18px;padding:12px 16px}
+.play .speaker .who{font-size:20px}
+.play .speaker .timer{flex:1 1 180px;flex-direction:row;align-items:center;gap:12px}
+.play .speaker .timer .t-num{font-size:22px}
+.play .speaker .timer .t-bar{flex:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -456,11 +507,11 @@ function makeMqtt(){
           out[k]={name:val.name.trim().slice(0,24),joinedAt:Date.now()};
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='revealed'&&q.length===4&&val===true){
         const cat=q[3];
-        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.revealed?.[cat]&&(CAT[cat]&&(cat!=='link'||me.card.link))){
+        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.revealed?.[cat]&&(cat==='link'?!!me.card.link:allowedCats(st,me).includes(cat))){
           out[k]=true; out['log/'+Date.now()+'_'+rid(4)]={t:Date.now(),text:cat==='link'?`${me.name} раскрывает тайную связь: ${me.card.link}`:`${me.name} открывает «${CAT[cat]}»: ${me.card[cat]}`};
         }
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='specialState'&&q.length===3&&val==='pending'){
-        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.specialState) out[k]='pending';
+        if(me&&me.card&&meta.phase==='game'&&!me.specialState) out[k]='pending';
       } else if(q[0]==='votes'&&q.length===3&&q[2]===uid){
         const v=meta.vote; if(v&&v.open&&q[1]===v.id&&canVote(v,me)&&v.candidates?.[val]&&val!==uid) out[k]=val;
       }
@@ -541,8 +592,11 @@ const revCount = p => CATS.filter(c=>p.revealed?.[c.k]).length;
 function allowedCats(room,p){
   if(!room || room.meta.phase!=='game' || !p || p.out || !p.card) return [];
   const rev=p.revealed||{};
-  return CATS.map(c=>c.k).filter(k=>!rev[k]);
+  if(revCount(p) < revealLimit(room)) return CATS.map(c=>c.k).filter(k=>!rev[k]);
+  return [];
 }
+// по одной любой характеристике за раунд (тайная связь не считается)
+const revealLimit = room => (room?.meta?.round||1);
 function genBio(){ const age=randInt(18,72); return {age, text:`${Math.random()<.5?'Женщина':'Мужчина'}, ${age} ${plural(age,'год','года','лет')} · ${pick(BODY)} телосложение`}; }
 function genProf(name,age){ const exp=randInt(0,Math.max(0,Math.min(30,age-19))); return `${name} · ${exp===0?'без опыта':'стаж '+exp+' '+plural(exp,'год','года','лет')}`; }
 function dealCards(n){
@@ -567,6 +621,21 @@ function dealCards(n){
 }
 function logEntry(patch,text){ patch['log/'+B.now()+'_'+rid(4)]={t:B.now(),text}; return patch; }
 const RIOT_TEXT='Внимание! Те, кого вы оставили за дверью, выжили. Они нашли укрытие и решили строить свою жизнь снаружи. Но одним им не справиться, им нужен ещё один человек. Сегодня ночью они вскрыли шлюз и ворвались в бункер. Те, кто снаружи, решают, кого забрать с собой: смотрите на открытые характеристики и выбирайте того, кто поможет вам выжить. Те, кто в бункере, голосовать не могут. Можете только убеждать.';
+// особые условия: что ведущая делает при подтверждении
+function specialKind(text){
+  const t=String(text||'');
+  if(/поменяться одной своей характеристикой/.test(t)) return {type:'swap'};
+  if(/поменяться багажом/.test(t)) return {type:'swap',cat:'baggage'};
+  if(/поменяться картой «Здоровье»/.test(t)) return {type:'swap',cat:'health'};
+  if(/заставить любого игрока открыть/.test(t)) return {type:'reveal'};
+  if(/заставить всех открыть «Профессию»/.test(t)) return {type:'revealAll',cat:'prof'};
+  if(/заменить свою карту «Здоровье»/.test(t)) return {type:'reroll',cat:'health',self:true};
+  if(/заменить свою «Профессию»/.test(t)) return {type:'reroll',cat:'prof',self:true};
+  if(/заменить «Фобию» любого игрока/.test(t)) return {type:'reroll',cat:'phobia'};
+  if(/отменить один голос против себя/.test(t)) return {type:'return',self:true};
+  if(/защитить любого игрока от исключения/.test(t)) return {type:'return'};
+  return {type:'plain'};
+}
 // кто голосует: в бунте только те, кто вне бункера; обычно только те, кто в игре
 const canVote = (v,p) => !!p && (v?.riot ? !!p.out : !p.out);
 const votersOf = room => playersOf(room).filter(p=>canVote(room.meta.vote,p));
@@ -772,15 +841,32 @@ const A = {
     logEntry(patch,`Ведущая заменила «${cat==='special'?'Особое условие':CAT[cat]}» игроку ${p.name}${shown?': теперь '+val:''}.`);
     return A.upd(patch);
   },
-  swap(a,b,cat){
-    const room=S.room; const pa=room.players[a], pb=room.players[b]; if(!pa?.card||!pb?.card||a===b) return flash('Выберите другого игрока',true);
-    if(isDog(pa.card)!==isDog(pb.card)) return flash('Собака и человек не могут меняться характеристиками',true);
-    const patch={['players/'+a+'/card/'+cat]:pb.card[cat],['players/'+b+'/card/'+cat]:pa.card[cat]};
+  async swap(a,b,cat,extra){
+    const room=S.room; const pa=room.players[a], pb=room.players[b]; if(!pa?.card||!pb?.card||a===b){ flash('Выберите другого игрока',true); return false; }
+    if(isDog(pa.card)!==isDog(pb.card)){ flash('Собака и человек не могут меняться характеристиками',true); return false; }
+    const patch=Object.assign({['players/'+a+'/card/'+cat]:pb.card[cat],['players/'+b+'/card/'+cat]:pa.card[cat]},extra||{});
+    // если характеристика была открыта у одного из них, после обмена она открыта у обоих — иначе всплыла бы чужая скрытая
+    if(pa.revealed?.[cat]||pb.revealed?.[cat]){ patch['players/'+a+'/revealed/'+cat]=true; patch['players/'+b+'/revealed/'+cat]=true; }
     logEntry(patch,`${pa.name} и ${pb.name} меняются характеристикой «${CAT[cat]}».`);
-    return A.upd(patch);
+    await A.upd(patch); return true;
+  },
+  // применить особое условие с его действием и сразу отметить «применено»
+  async applySpecial(pid){
+    const room=S.room; const p=room.players[pid]; const k=specialKind(p.card.special);
+    const val=id=>document.getElementById(id)?.value;
+    const to=val('sp-to-'+pid), cat=k.cat||val('sp-cat-'+pid);
+    const used={['players/'+pid+'/specialState']:'used'};
+    const note=t=>logEntry(Object.assign({},used),`${p.name} применяет особое условие: ${p.card.special}${t?' — '+t:''}`);
+    if(k.type==='swap'){ if(!to) return flash('Выберите игрока',true); const done=await A.swap(pid,to,cat,used); if(done) await A.upd(note(`обмен с игроком ${nameOf(room,to)}`)); return; }
+    if(k.type==='reveal'){ if(!to) return flash('Выберите игрока',true); await A.reveal(to,cat,true); return A.upd(note(`${nameOf(room,to)} открывает «${CAT[cat]}»`)); }
+    if(k.type==='revealAll'){ const patch=note('все открывают «'+CAT[cat]+'»'); aliveOf(room).forEach(x=>{ patch['players/'+x.id+'/revealed/'+cat]=true; }); return A.upd(patch); }
+    if(k.type==='reroll'){ const who=k.self?pid:to; if(!who) return flash('Выберите игрока',true); await A.reroll(who,cat); return A.upd(note(k.self?'':`у игрока ${nameOf(room,who)}`)); }
+    if(k.type==='return'){ const who=k.self?pid:to; if(!who||!room.players[who]?.out) return flash(k.self?'Условие сработает, когда игрока исключат':'Выберите исключённого игрока',true);
+      const patch=note(`${nameOf(room,who)} возвращается в бункер`); patch['players/'+who+'/out']=null; patch['players/'+who+'/outRound']=null; return A.upd(patch); }
+    return A.upd(note(''));
   },
   requestSpecial(pid){ return A.upd({['players/'+pid+'/specialState']:'pending'}); },
-  approveSpecial(pid){ const p=S.room.players[pid]; return A.upd(logEntry({['players/'+pid+'/specialState']:'used'},`${p.name} применяет особое условие: ${p.card.special}`)); },
+  approveSpecialPlain(pid){ const p=S.room.players[pid]; return A.upd(logEntry({['players/'+pid+'/specialState']:'used'},`${p.name} применяет особое условие: ${p.card.special}`)); },
   rejectSpecial(pid){ return A.upd({['players/'+pid+'/specialState']:null}); },
   botsReveal(){
     const room=S.room; const patch={};
@@ -863,7 +949,10 @@ function render(){
   else if(S.screen==='join') html=joinHTML();
   else if(S.screen==='room') html=roomHTML();
   if(S.flash) html+=`<div class="flash ${S.flash.bad?'bad':''}" role="status">${esc(S.flash.text)}</div>`;
+  // выбранные значения в списках не сбрасываются, когда экран обновляется
+  const keep={}; document.querySelectorAll('#app select[id]').forEach(e=>{ keep[e.id]=e.value; });
   document.getElementById('app').innerHTML=html;
+  for(const [id,v] of Object.entries(keep)){ const e=document.getElementById(id); if(e&&[...e.options].some(o=>o.value===v)) e.value=v; }
   if(fid){ const el=document.getElementById(fid); if(el){ el.focus(); try{ if(ss!=null) el.setSelectionRange(ss,se); }catch(e){} } }
 }
 
@@ -976,9 +1065,20 @@ function hostHTML(room){
     }
   }
   const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">Слово у игрока</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}<div><button class="btn sm" data-act="stop">Остановить таймер</button></div></div>`:'';
-  const requests=pend.length?`<div class="panel banner stack">${pend.map(p=>`<div class="stack" style="gap:6px"><b>${esc(p.name)} хочет применить особое условие</b><span>${esc(p.card.special)}</span><div class="row"><button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">Подтвердить</button><button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">Отклонить</button></div></div>`).join('')}</div>`:'';
+  const requests=pend.length?`<div class="panel banner stack">${pend.map(p=>{
+    const k=specialKind(p.card.special); const others=ps.filter(x=>x.id!==p.id); const outs=ps.filter(x=>x.out);
+    const opt=list=>list.map(x=>`<option value="${x.id}">${esc(x.name)}${x.out?' (вне бункера)':''}</option>`).join('');
+    const catSel=`<select id="sp-cat-${p.id}">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select>`;
+    let ctl='', btn='Подтвердить';
+    if(k.type==='swap'){ ctl=`${k.cat?`<span class="muted">«${CAT[k.cat]}» с игроком</span>`:catSel+'<span class="muted">с игроком</span>'}<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select>`; btn='Поменять'; }
+    else if(k.type==='reveal'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others.filter(x=>!x.out))}</select><span class="muted">открывает</span>${catSel}`; btn='Открыть'; }
+    else if(k.type==='revealAll'){ btn='Открыть всем «Профессию»'; }
+    else if(k.type==='reroll'){ ctl=k.self?`<span class="muted">Новая карта «${CAT[k.cat]}» для ${esc(p.name)}</span>`:`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select><span class="muted">получает новую «${CAT[k.cat]}»</span>`; btn='Заменить'; }
+    else if(k.type==='return'){ if(k.self){ ctl=p.out?`<span class="muted">${esc(p.name)} вернётся в бункер</span>`:'<span class="muted">Сработает после исключения: игрок сможет вернуться</span>'; btn=p.out?'Вернуть в игру':''; }
+      else { ctl=outs.length?`<select id="sp-to-${p.id}"><option value="">кого вернуть</option>${opt(outs)}</select>`:'<span class="muted">Сработает после исключения: пока возвращать некого</span>'; btn=outs.length?'Вернуть в игру':''; } }
+    return `<div class="stack" style="gap:8px"><b>${esc(p.name)}${p.out?' (вне бункера)':''} применяет особое условие</b><span>${esc(p.card.special)}</span>${ctl?`<div class="row sp-row">${ctl}</div>`:''}<div class="row">${btn?`<button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">${btn}</button>`:''}<button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">${btn?'Отклонить':'Отложить'}</button></div></div>`; }).join('')}</div>`:'';
   const control=m.phase==='game'?`<div class="panel"><span class="label">Раунд ${m.round}</span>
-    <p class="muted" style="font-size:13px">Игроки открывают характеристики сами в любой момент. Что открывать в этом раунде, договариваетесь устно.</p>
+    <p class="muted" style="font-size:13px">Каждый открывает одну любую характеристику. Открыли: ${al.filter(p=>!allowedCats(room,p).length).length} из ${al.length}.</p>
     <div class="row"><button class="btn" data-act="next-round">Следующий раунд</button>${hasBots?'<button class="btn sm" data-act="bots-reveal">Боты открывают</button>':''}</div>
     ${full?`<div class="banner stack" style="gap:8px"><b>Бункер укомплектован: ${al.length} из ${m.target} мест.</b><button class="btn primary" data-act="finish">Завершить игру</button></div>`:`<span class="muted" style="font-size:13px">Нужно исключить ещё ${al.length-m.target}.</span>`}</div>`:'';
   const demo=hasBots?`<div class="panel tight"><span class="label">Проверка</span><div class="row"><select id="va-pid">${ps.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn sm" data-act="view-as-sel">Смотреть глазами игрока</button></div></div>`:'';
@@ -1020,14 +1120,16 @@ function playerHTML(room,pid,demo){
 
   const t=m.timer; const v=m.vote; const al=aliveOf(room);
   const allowed=allowedCats(room,me);
-  const hint=me.out?'Вы не попали в бункер и наблюдаете за игрой.':allowed.length?'Все характеристики видите только вы. Назвали характеристику в обсуждении — нажмите «Открыть», и её сразу увидят все на общем экране.':'Вы открыли все характеристики.';
-
-  const dossier=`<div class="dossier"><div class="head"><h2>${esc(me.name)}</h2><span class="no">ЛИЧНОЕ ДЕЛО<br>№ ${String(ps.findIndex(p=>p.id===pid)+1).padStart(2,'0')} · ${esc(S.code)}</span></div>
-    <p style="font-size:13px;color:#5d6056;padding-bottom:6px">${esc(hint)}</p>
-    ${CATS.map(c=>{ const r=me.revealed?.[c.k]; const can=allowed.includes(c.k); return `<div class="field"><span class="k">${c.t}</span><span class="v">${esc(me.card?.[c.k])}</span><span class="act">${r?'<span class="stamp open">открыто</span>':can?`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="${c.k}">Открыть</button>`:'<span class="stamp closed">скрыто</span>'}</span></div>`; }).join('')}
-    ${me.card?.link?`<div class="special"><span class="k" style="font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:#5d6056">ТАЙНАЯ СВЯЗЬ · знаете только вы</span><span>${esc(me.card.link)}</span><div>${me.revealed?.link?'<span class="stamp open">открыто</span>':`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="link">Открыть всем</button> <span style="font-size:12.5px;color:#5d6056">в любой момент, раунд не тратится</span>`}</div></div>`:''}
-    <div class="special"><span class="k" style="font-family:var(--f-mono);font-size:10.5px;letter-spacing:.12em;color:#5d6056">ОСОБОЕ УСЛОВИЕ · одно на игру</span><span>${esc(me.card?.special)}</span>
-    <div>${me.specialState==='used'?'<span class="stamp open">применено</span>':me.specialState==='pending'?'<span class="stamp closed">ждёт решения ведущей</span>':me.out?'':`<button class="btn sm" data-act="sp-req" data-pid="${pid}">Применить</button>`}</div></div></div>`;
+  const limit=revealLimit(room); const opened=revCount(me); const left=Math.max(0,limit-opened);
+  const status=me.out?'Вы вне бункера':left?`Можно открыть ещё ${left}`:'В этом раунде вы уже открыли';
+  const dossier=`<section class="mycard">
+    <div class="mc-head"><h2>Моя карточка</h2><span class="chip ${me.out?'bad':left?'on':''}">${status}</span></div>
+    <div class="mc-grid">${CATS.map(c=>{ const r=me.revealed?.[c.k]; const can=allowed.includes(c.k);
+      return `<div class="tile ${r?'is-open':''}"><span class="k">${c.t}</span><span class="v">${esc(me.card?.[c.k])}</span>${r?'<span class="tag">открыто</span>':can?`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="${c.k}">Открыть</button>`:''}</div>`; }).join('')}</div>
+    <div class="mc-extra">
+      ${me.card?.link?`<div class="tile wide ${me.revealed?.link?'is-open':''}"><span class="k">Тайная связь · в любой момент</span><span class="v">${esc(me.card.link)}</span>${me.revealed?.link?'<span class="tag">открыто</span>':me.out?'':`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="link">Открыть</button>`}</div>`:''}
+      <div class="tile wide ${me.specialState==='used'?'is-open':''}"><span class="k">Особое условие · одно на игру</span><span class="v">${esc(me.card?.special)}</span>${me.specialState==='used'?'<span class="tag">применено</span>':me.specialState==='pending'?'<span class="tag wait">ждёт ведущую</span>':`<button class="btn sm" data-act="sp-req" data-pid="${pid}">Применить</button>`}</div>
+    </div></section>`;
 
   let voteBlock='';
   if(v&&v.open){
@@ -1039,18 +1141,20 @@ function playerHTML(room,pid,demo){
     voteBlock=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,false)}<p class="muted">Ведущая объявит решение.</p></div>`;
   }
   const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">${t.pid===pid?'Ваше слово':'Говорит'}</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}</div>`:'';
-  const outBanner=me.out?`<div class="banner bad"><b>Вы не попали в бункер.</b> Можете наблюдать и участвовать в обсуждении.</div>`:'';
+  const outBanner=me.out?`<div class="banner bad"><b>Вы вне бункера.</b> Наблюдайте и голосуйте в бунте. Особое условие можно применить и сейчас.</div>`:'';
 
   const boardPs=ps.filter(p=>!p.out).concat(ps.filter(p=>p.out));
-  const people=`<div class="stack" style="gap:10px"><div class="row"><h2 class="grow">Общий экран</h2><span class="muted" style="font-size:13px">В игре ${al.length} · мест ${m.target}</span></div><div class="people">${boardPs.map(p=>{
-      const rev=CATS.filter(c=>p.revealed?.[c.k]); const hid=8-rev.length; const speaking=t?.kind==='speech'&&t.pid===p.id;
-      const extra=(p.revealed?.link&&p.card?.link?`<div><span class="k">Тайная связь</span>${esc(p.card.link)}</div>`:'')+(p.specialState==='used'?`<div><span class="k">Особое условие</span>${esc(p.card?.special)}</div>`:'');
-      return `<div class="person ${p.out?'out':''} ${speaking?'speaking':''} ${p.id===pid?'me':''}">${p.out?'<span class="xmark" aria-hidden="true"></span><span class="out-stamp">Не в бункере</span>':''}<div class="nm"><b>${esc(p.name)}${p.id===pid?' <span class="muted" style="font-weight:400">· вы</span>':''}</b>${speaking?'<span class="chip on">говорит</span>':''}</div>
-      <div class="traits">${rev.length||extra?rev.map(c=>`<div><span class="k">${c.t}</span>${esc(p.card?.[c.k])}</div>`).join('')+extra:'<span class="muted" style="font-size:13px">Пока ничего не открыто</span>'}</div>
-      ${hid&&!p.out?`<span class="muted" style="font-size:12.5px"><span class="redact" style="width:${Math.min(hid,8)*9}px"></span> скрыто ещё ${hid}</span>`:''}</div>`; }).join('')}</div></div>`;
+  const cell=(p,k,label)=>{ const shown=k==='link'?(p.revealed?.link&&p.card?.link):p.revealed?.[k]; const v=k==='special'?(p.specialState==='used'?p.card?.special:''):shown?p.card?.[k]:'';
+    return `<td data-k="${label}" class="${v?'':'empty'}">${v?esc(v):'<span class="dash">—</span>'}</td>`; };
+  const anyLink=boardPs.some(p=>p.revealed?.link); const anySp=boardPs.some(p=>p.specialState==='used');
+  const people=`<section class="board-wrap"><div class="mc-head"><h2>Общий стол</h2><span class="muted" style="font-size:13px">в бункере ${al.length} · мест ${m.target}</span></div>
+    <div class="board-scroll"><table class="board"><thead><tr><th>Игрок</th>${CATS.map(c=>`<th>${c.t}</th>`).join('')}${anyLink?'<th>Тайная связь</th>':''}${anySp?'<th>Особое условие</th>':''}</tr></thead><tbody>
+    ${boardPs.map(p=>{ const speaking=t?.kind==='speech'&&t.pid===p.id;
+      return `<tr class="${p.out?'out':''} ${speaking?'speaking':''} ${p.id===pid?'me':''}"><th scope="row"><span class="nm">${esc(p.name)}</span>${p.id===pid?'<span class="chip">вы</span>':''}${speaking?'<span class="chip on">говорит</span>':''}${p.out?'<span class="chip bad">не в бункере</span>':''}</th>
+      ${CATS.map(c=>cell(p,c.k,c.t)).join('')}${anyLink?cell(p,'link','Тайная связь'):''}${anySp?cell(p,'special','Особое условие'):''}</tr>`; }).join('')}
+    </tbody></table></div></section>`;
 
-  return demoBar+barHTML(room)+`<div class="play-grid"><div class="stack" style="gap:14px">${outBanner}${speaker}${voteBlock}${people}${scenarioHTML(scenarioOf(room),m.target,ps.length,m.round===1)}</div>
-  <div class="stack dossier-col" style="gap:14px">${dossier}${logHTML(room)}</div></div>`;
+  return demoBar+barHTML(room)+`<div class="play">${outBanner}${speaker}${voteBlock}${dossier}${people}${scenarioHTML(scenarioOf(room),m.target,ps.length,false)}</div>`;
 }
 
 /* ---------------- События ---------------- */
@@ -1088,7 +1192,7 @@ app.addEventListener('click',async e=>{
     case 'finish': await A.finish(); break;
     case 'reroll': await A.reroll(pid,document.getElementById('rr-cat').value); break;
     case 'swap': await A.swap(pid,document.getElementById('sw-to').value,document.getElementById('sw-cat').value); break;
-    case 'sp-ok': await A.approveSpecial(pid); break;
+    case 'sp-ok': await A.applySpecial(pid); break;
     case 'sp-no': await A.rejectSpecial(pid); break;
     case 'sp-req': await A.requestSpecial(pid); flash('Запрос отправлен ведущей'); break;
     case 'reveal': await A.reveal(pid,el.dataset.cat,false); break;
