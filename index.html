@@ -702,9 +702,11 @@ const A = {
   addBots(n){
     const room=S.room; const used=new Set(playersOf(room).map(p=>p.name)); const free=BOT_NAMES.filter(x=>!used.has(x));
     const patch={}; const t=B.now();
-    free.slice(0,Math.min(n,16-playersOf(room).length)).forEach((nm,i)=>{ patch['players/bot_'+rid(6)]={name:nm,joinedAt:t+i,bot:true}; });
+    const label=nm=>B.mode==='local'?nm:'Бот '+nm;
+    free.filter(nm=>!used.has(label(nm))).slice(0,Math.min(n,16-playersOf(room).length)).forEach((nm,i)=>{ patch['players/bot_'+rid(6)]={name:label(nm),joinedAt:t+i,bot:true}; });
     return A.upd(patch);
   },
+  dropBots(){ const patch={}; playersOf(S.room).filter(p=>p.bot).forEach(p=>{ patch['players/'+p.id]=null; }); return A.upd(patch); },
   removePlayer(pid){ return A.upd({['players/'+pid]:null}); },
   start(){
     const room=S.room; const ps=playersOf(room); if(ps.length<2) return flash('Нужно хотя бы 2 участника',true);
@@ -913,7 +915,8 @@ function hostHTML(room){
     main=`<div class="panel codebox"><div class="hazard"></div><span class="label">Код для входа</span><div class="code-big">${esc(S.code)}</div>
       <label class="label" for="h-link">Ссылка для участников</label><div class="linkrow"><input id="h-link" type="text" readonly value="${esc(link)}"><button class="btn" data-act="copy">Скопировать</button></div>
       ${B.mode==='local'?'<span class="muted" style="font-size:13px">В демо-режиме ссылка работает только в этом браузере.</span>':'<span class="muted" style="font-size:13px">Не закрывайте эту вкладку до конца игры: игра идёт через неё. Если случайно закрыли или обновили, откройте её снова в этом же браузере, всё сохранится.</span>'}</div>
-      <div class="panel"><div class="row"><h2 class="grow">Участники · ${ps.length}</h2>${B.mode==='local'?`<button class="btn sm" data-act="bots-add" ${ps.length>=16?'disabled':''}>+ Тестовый участник</button>`:''}</div>
+      <div class="panel"><div class="row"><h2 class="grow">Участники · ${ps.length}</h2><button class="btn sm" data-act="bots-add" ${ps.length>=16?'disabled':''}>+ Бот</button><button class="btn sm" data-act="bots-fill" ${ps.length>=16?'disabled':''}>Заполнить ботами до 16</button>${ps.some(p=>p.bot)?'<button class="btn ghost sm" data-act="bots-drop">Убрать ботов</button>':''}</div>
+      <span class="muted" style="font-size:13px">Боты нужны для пробной игры: ходы за них делаете вы кнопками «Боты открывают» и «Боты голосуют».</span>
       ${ps.length?`<div class="people">${ps.map(p=>`<div class="person"><div class="nm"><b>${esc(p.name)}</b><button class="btn ghost sm" data-act="kick" data-pid="${p.id}" aria-label="Удалить ${esc(p.name)}">Удалить</button></div></div>`).join('')}</div>`:'<p class="muted">Пока никого. Отправьте участникам код или ссылку.</p>'}</div>`;
     const def=Math.floor(ps.length/2)||1;
     side=`${scenarioHTML(scenarioOf(room),0,0,false)}<div class="panel"><span class="label">Перед стартом</span>
@@ -923,6 +926,7 @@ function hostHTML(room){
   }
 
   const ps=playersOf(room); const al=aliveOf(room);
+  const hasBots=B.mode==='local'||ps.some(p=>p.bot);
   const pend=ps.filter(p=>p.specialState==='pending');
   const t=m.timer;
   const full=al.length<=m.target;
@@ -943,7 +947,7 @@ function hostHTML(room){
   if(sp&&m.phase==='game'){
     const others=ps.filter(x=>x.id!==sp.id);
     selHTML=`<div class="panel tools"><div class="row"><h3 class="grow">${esc(sp.name)}</h3><button class="btn ghost sm" data-act="sel" data-pid="">Закрыть</button></div>
-      <div class="row">${!sp.out?`<button class="btn primary sm" data-act="word" data-pid="${sp.id}">Дать слово · 1:00</button>`:''}${sp.out?`<button class="btn sm" data-act="return" data-pid="${sp.id}">Вернуть в игру</button>`:`<button class="btn danger sm" data-act="exclude" data-pid="${sp.id}">Исключить</button>`}${B.mode==='local'?`<button class="btn sm" data-act="view-as" data-pid="${sp.id}">Экран игрока</button>`:''}</div>
+      <div class="row">${!sp.out?`<button class="btn primary sm" data-act="word" data-pid="${sp.id}">Дать слово · 1:00</button>`:''}${sp.out?`<button class="btn sm" data-act="return" data-pid="${sp.id}">Вернуть в игру</button>`:`<button class="btn danger sm" data-act="exclude" data-pid="${sp.id}">Исключить</button>`}${hasBots?`<button class="btn sm" data-act="view-as" data-pid="${sp.id}">Экран игрока</button>`:''}</div>
       <span class="label">Заменить характеристику</span><div class="row"><select id="rr-cat">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}<option value="special">Особое условие</option></select><button class="btn sm" data-act="reroll" data-pid="${sp.id}">Заменить</button></div>
       <span class="label">Обменяться с другим игроком</span><div class="row"><select id="sw-cat">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select><select id="sw-to">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select><button class="btn sm" data-act="swap" data-pid="${sp.id}">Обменять</button></div></div>`;
   }
@@ -962,7 +966,7 @@ function hostHTML(room){
         ${timerHTML(t&&t.kind==='vote'?t:{endsAt:v.endsAt,dur:120000})}
         ${voteResultsHTML(room,true)}
         ${notYet.length?`<p class="muted" style="font-size:13px">Не проголосовали: ${notYet.map(p=>esc(p.name)).join(', ')}</p>`:''}
-        <div class="row"><button class="btn primary" data-act="vote-close">Завершить голосование</button><button class="btn ghost sm" data-act="vote-cancel">Отменить</button>${B.mode==='local'?'<button class="btn sm" data-act="bots-vote">Боты голосуют</button>':''}</div></div>`;
+        <div class="row"><button class="btn primary" data-act="vote-close">Завершить голосование</button><button class="btn ghost sm" data-act="vote-cancel">Отменить</button>${hasBots?'<button class="btn sm" data-act="bots-vote">Боты голосуют</button>':''}</div></div>`;
     } else {
       const res=tally(room); const lead=Math.max(0,...Object.values(res).map(a=>a.length)); const leaders=Object.keys(res).filter(k=>res[k].length===lead&&lead>0);
       vote=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,true)}
@@ -975,9 +979,9 @@ function hostHTML(room){
   const requests=pend.length?`<div class="panel banner stack">${pend.map(p=>`<div class="stack" style="gap:6px"><b>${esc(p.name)} хочет применить особое условие</b><span>${esc(p.card.special)}</span><div class="row"><button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">Подтвердить</button><button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">Отклонить</button></div></div>`).join('')}</div>`:'';
   const control=m.phase==='game'?`<div class="panel"><span class="label">Раунд ${m.round}</span>
     <p class="muted" style="font-size:13px">Игроки открывают характеристики сами в любой момент. Что открывать в этом раунде, договариваетесь устно.</p>
-    <div class="row"><button class="btn" data-act="next-round">Следующий раунд</button>${B.mode==='local'?'<button class="btn sm" data-act="bots-reveal">Боты открывают</button>':''}</div>
+    <div class="row"><button class="btn" data-act="next-round">Следующий раунд</button>${hasBots?'<button class="btn sm" data-act="bots-reveal">Боты открывают</button>':''}</div>
     ${full?`<div class="banner stack" style="gap:8px"><b>Бункер укомплектован: ${al.length} из ${m.target} мест.</b><button class="btn primary" data-act="finish">Завершить игру</button></div>`:`<span class="muted" style="font-size:13px">Нужно исключить ещё ${al.length-m.target}.</span>`}</div>`:'';
-  const demo=B.mode==='local'?`<div class="panel tight"><span class="label">Демо</span><div class="row"><select id="va-pid">${ps.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn sm" data-act="view-as-sel">Смотреть глазами игрока</button></div></div>`:'';
+  const demo=hasBots?`<div class="panel tight"><span class="label">Проверка</span><div class="row"><select id="va-pid">${ps.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select><button class="btn sm" data-act="view-as-sel">Смотреть глазами игрока</button></div></div>`:'';
 
   if(m.phase==='final') return barHTML(room)+finalHTML(room,true);
 
@@ -1065,6 +1069,8 @@ app.addEventListener('click',async e=>{
     case 'demo': await A.launchDemo(); break;
     case 'copy': { const inp=document.getElementById('h-link'); try{ await navigator.clipboard.writeText(inp.value); flash('Ссылка скопирована'); }catch(err){ inp.select(); flash('Выделила ссылку, скопируйте её вручную'); } break; }
     case 'bots-add': await A.addBots(1); break;
+    case 'bots-fill': await A.addBots(16); break;
+    case 'bots-drop': await A.dropBots(); break;
     case 'kick': await A.removePlayer(pid); break;
     case 'start': await A.start(); break;
     case 'sel': S.hostSel=pid||null; render(); break;
