@@ -957,7 +957,7 @@ function render(){
 }
 
 function homeHTML(){
-  return `<section class="home-hero"><div class="hazard" style="max-width:220px"></div><h1>Бункер</h1>
+  return netWarnHTML()+`<section class="home-hero"><div class="hazard" style="max-width:220px"></div><h1>Бункер</h1>
   <p style="max-width:60ch;font-size:17px">Командная игра на выживание до 16 человек. Катастрофа уже случилась, мест в убежище хватит только половине. У каждого есть личное дело, и его придётся защищать.</p></section>
   ${B.mode==='local'?`<div class="demo-note stack" style="margin-bottom:16px;gap:6px"><b>Демо-режим</b><span class="muted">Сеть для игры недоступна (так бывает в предпросмотре), поэтому игра работает только в этом браузере. На сайте игра подключится к сети сама. Запустите демо: в комнате уже будут 8 тестовых участников, а вы сможете посмотреть игру и их глазами.</span><div><button class="btn primary" data-act="demo">Запустить демо на 8 человек</button></div></div>`:''}
   <div class="home-grid">
@@ -965,6 +965,7 @@ function homeHTML(){
     <div class="panel"><span class="label">Участник</span><h2>Войти по коду</h2>${joinFormHTML()}</div>
   </div>`;
 }
+const netWarnHTML=()=>S.netWarn?`<div class="banner bad stack" style="gap:6px;margin-bottom:16px"><b>Нет связи с сервером игры</b><span class="muted">Пробую подключиться снова. Проверьте интернет. Если включён блокировщик рекламы или корпоративный VPN, отключите их для этого сайта или откройте игру в другом браузере.</span></div>`:'';
 function joinFormHTML(){
   return `<form class="stack" data-form="join"><div class="row"><label class="label" for="j-code" style="width:100%">Код игры</label><input id="j-code" class="code" type="text" maxlength="4" autocomplete="off" value="${esc(S.draft.code||'')}" placeholder="ABCD"></div>
   <div class="stack" style="gap:6px"><label class="label" for="j-name">Ваше имя</label><input id="j-name" type="text" maxlength="24" autocomplete="name" value="${esc(S.draft.name||'')}" placeholder="Как вас называть в игре"></div>
@@ -972,7 +973,7 @@ function joinFormHTML(){
   <div class="row"><button class="btn primary" type="submit" ${S.joining?'disabled':''}>${S.joining?'Ищу игру…':'Войти в игру'}</button>${S.joining?'<span class="muted" style="font-size:13px">Подключаюсь, это может занять до 10 секунд</span>':''}</div></form>`;
 }
 function joinHTML(){
-  return `<header class="bar"><span class="brand">БУНКЕР</span><button class="btn ghost sm" data-act="home">На главную</button></header>
+  return netWarnHTML()+`<header class="bar"><span class="brand">БУНКЕР</span><button class="btn ghost sm" data-act="home">На главную</button></header>
   <div style="max-width:460px" class="panel"><h2>Вход в игру</h2>${joinFormHTML()}</div>`;
 }
 function createHTML(){
@@ -1223,8 +1224,11 @@ setInterval(()=>{
 window.addEventListener('hashchange',route);
 (async()=>{
   render();
-  let online=false; try{ online = typeof WebSocket!=='undefined' && await probeBrokers(6000); }catch(err){ online=false; }
-  B = online ? makeMqtt() : makeLocal();
+  let online=false; try{ online = typeof WebSocket!=='undefined' && await probeBrokers(8000); }catch(err){ online=false; }
+  // демо-режим только в предпросмотре (Claude или файл на компьютере); на сайте — всегда сетевая игра
+  const preview = /claude/i.test(location.hostname) || location.protocol==='file:' || location.hostname==='';
+  B = (online || !preview) && typeof WebSocket!=='undefined' ? makeMqtt() : makeLocal();
+  if(B.mode==='mqtt' && !online){ S.netWarn=true; const recheck=async()=>{ if(await probeBrokers(8000)){ S.netWarn=false; render(); } else setTimeout(recheck,5000); }; setTimeout(recheck,3000); }
   route();
 })();
 </script>
