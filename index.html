@@ -480,7 +480,9 @@ function makeMqtt(){
       go();
     });
     const upd=()=>{ net.ok=h.links.some(l=>l.mq&&l.mq.open); touch(); };
-    setInterval(()=>{ const now=Date.now(); let n=0; h.conns.forEach(c=>{ if(now-c.t<60000) n++; }); if(net.peers!==n){ net.peers=n; touch(); } },5000);
+    let onKey='';
+    setInterval(()=>{ const now=Date.now(); let n=0; const on=[]; h.conns.forEach((c,uid)=>{ if(now-c.t<60000) n++; if(now-c.t<15000) on.push(uid); }); const k=on.sort().join(); if(net.peers!==n||k!==onKey){ net.peers=n; onKey=k; touch(); } },3000);
+    h.online=uid=>{ const c=h.conns.get(uid); return !!c&&Date.now()-c.t<15000; };
     return h;
   }
   const anyLink=h=>h.links.find(l=>l.mq&&l.mq.open);
@@ -560,6 +562,7 @@ function makeMqtt(){
   return {
     mode:'mqtt',
     status:()=>net,
+    isOnline:(code,uid)=>{ const h=hosts[code]; return h&&h.online?h.online(uid):true; },
     now:()=>Date.now()+offset,
     watch(code,cb,opt){
       if(opt&&opt.role==='host'){ const h=hostCtx(code,false); if(!h){ setTimeout(()=>cb(null),0); return ()=>{}; } h.cbs.add(cb); setTimeout(()=>cb(clone(h.state)),0); return ()=>h.cbs.delete(cb); }
@@ -1026,7 +1029,7 @@ function hostHTML(room){
   // таблица
   const table=`<div class="tbl-wrap"><table class="dossiers"><thead><tr><th>Игрок</th>${CATS.map(c=>`<th>${c.t}</th>`).join('')}<th>Тайная связь</th><th>Особое условие</th></tr></thead><tbody>
   ${ps.map(p=>`<tr class="${p.out?'out':''} ${S.hostSel===p.id?'sel':''} ${t?.kind==='speech'&&t.pid===p.id?'speaking':''}">
-    <td><button class="pname" data-act="sel" data-pid="${p.id}">${esc(p.name)}<small>${p.out?'вне бункера':'открыто '+revCount(p)+'/8'}</small></button></td>
+    <td><button class="pname" data-act="sel" data-pid="${p.id}">${esc(p.name)}<small>${p.out?'вне бункера':'открыто '+revCount(p)+'/8'}${!p.bot&&B.isOnline&&!B.isOnline(S.code,p.id)?' · <span style="color:var(--danger)">не в сети</span>':''}</small></button></td>
     ${CATS.map(c=>{ const r=p.revealed?.[c.k]; return `<td><button class="cell ${r?'revealed':'hidden'}" data-act="cell" data-pid="${p.id}" data-cat="${c.k}" title="${r?'Нажмите, чтобы снова скрыть':'Нажмите, чтобы открыть всем'}">${esc(p.card?.[c.k])}</button></td>`; }).join('')}
     <td>${p.card?.link?`<button class="cell ${p.revealed?.link?'revealed':'hidden'}" data-act="cell" data-pid="${p.id}" data-cat="link" title="${p.revealed?.link?'Нажмите, чтобы снова скрыть':'Нажмите, чтобы открыть всем'}">${esc(p.card.link)}</button>`:'<div class="cell muted" style="cursor:default">—</div>'}</td>
     <td><div class="cell" style="cursor:default">${esc(p.card?.special)}<br>${p.specialState==='used'?'<span class="chip ok">применено</span>':p.specialState==='pending'?'<span class="chip on">ждёт решения</span>':''}</div></td>
@@ -1051,7 +1054,7 @@ function hostHTML(room){
     if(!v){
       const outs=ps.filter(p=>p.out);
       const waiting=al.filter(p=>allowedCats(room,p).length>0);
-      vote=`<div class="panel"><span class="label">Голосование</span>${waiting.length?`<p>Голосование откроется, когда все откроют характеристику раунда. Ждём: <b>${waiting.map(p=>esc(p.name)).join(', ')}</b></p>`:'<p class="muted">Все открыли характеристику. Голос тайный, вы видите, кто за кого.</p>'}<div class="row"><button class="btn primary" data-act="vote-start" ${al.length<2||waiting.length?'disabled':''}>Начать голосование · 2:00</button>${waiting.length&&al.length>=2?'<button class="btn ghost sm" data-act="vote-start">Начать, не дожидаясь</button>':''}</div></div>
+      vote=`<div class="panel"><span class="label">Голосование</span>${waiting.length?`<p>Ещё не открыли характеристику раунда: <b>${waiting.map(p=>esc(p.name)+(!p.bot&&B.isOnline&&!B.isOnline(S.code,p.id)?' (не в сети)':'')).join(', ')}</b>. Голосование можно начать в любой момент.</p>`:'<p class="muted">Все открыли характеристику. Голос тайный, вы видите, кто за кого.</p>'}<div class="row"><button class="btn primary" data-act="vote-start" ${al.length<2?'disabled':''}>Начать голосование · 2:00</button></div></div>
       <div class="panel riot"><span class="label">Бунт</span><p class="muted">Те, кто вне бункера, выбирают, кого забрать из бункера. Голосуют только они. Лучше в середине игры.</p><button class="btn danger" data-act="riot" ${!outs.length||al.length<2?'disabled':''}>Начать бунт · 2:00</button>${outs.length?'':'<span class="muted" style="font-size:13px">Станет доступно, когда кто-то будет исключён.</span>'}</div>`;
     } else if(v.open){
       const votes=room.votes?.[v.id]||{}; const vs=votersOf(room); const notYet=vs.filter(p=>!votes[p.id]);
