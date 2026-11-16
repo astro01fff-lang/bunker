@@ -460,7 +460,7 @@ function viewFor(st,uid){
 }
 
 function getPath(o,parts){ for(const k of parts){ if(o==null) return undefined; o=o[k]; } return o; }
-function applied(view,patch){ return Object.entries(patch).every(([k,v])=>{ const g=getPath(view,k.split('/')); return (v&&typeof v==='object')?g!=null:g===v; }); }
+function applied(view,patch){ return Object.entries(patch).filter(([k])=>!k.startsWith('log/')).every(([k,v])=>{ const g=getPath(view,k.split('/')); return (v&&typeof v==='object')?g!=null:g===v; }); }
 function makeMqtt(){
   const hosts={}, clients={};
   let offset=0; const net={ok:false,peers:0};
@@ -505,10 +505,10 @@ function makeMqtt(){
       if(q[0]==='players'&&q[1]===uid&&q.length===2){
         if(meta.phase==='lobby'&&!me&&Object.keys(st.players||{}).length<16&&val&&typeof val.name==='string'&&val.name.trim())
           out[k]={name:val.name.trim().slice(0,24),joinedAt:Date.now()};
-      } else if(q[0]==='players'&&q[1]===uid&&q[2]==='revealed'&&q.length===4&&val===true){
+      } else if(q[0]==='players'&&q[1]===uid&&q[2]==='revealed'&&q.length===4&&val){
         const cat=q[3];
         if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.revealed?.[cat]&&(cat==='link'?!!me.card.link:allowedCats(st,me).includes(cat))){
-          out[k]=true; out['log/'+Date.now()+'_'+rid(4)]={t:Date.now(),text:cat==='link'?`${me.name} раскрывает тайную связь: ${me.card.link}`:`${me.name} открывает «${CAT[cat]}»: ${me.card[cat]}`};
+          out[k]=cat==='link'?true:(meta.round||1); out['log/'+Date.now()+'_'+rid(4)]={t:Date.now(),text:cat==='link'?`${me.name} раскрывает тайную связь: ${me.card.link}`:`${me.name} открывает «${CAT[cat]}»: ${me.card[cat]}`};
         }
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='specialState'&&q.length===3&&val==='pending'){
         if(me&&me.card&&meta.phase==='game'&&!me.specialState) out[k]='pending';
@@ -533,7 +533,7 @@ function makeMqtt(){
         try{ await mq.connect(8000); }catch(e){ c.bi++; continue; }
         c.mq=mq; net.ok=true; touch();
         mq.sub(topicOf(code,'d/'+uid),m=>{
-          if(m.t==='snap'&&m.v){ offset=(m.now||Date.now())-Date.now(); c.view=m.v; c.lastSnap=Date.now(); c.pending=c.pending.filter(x=>!applied(m.v,x.patch)); c.cbs.forEach(cb=>cb(clone(m.v))); c.waiters.splice(0).forEach(f=>f(c.view)); }
+          if(m.t==='snap'&&m.v){ offset=(m.now||Date.now())-Date.now(); const js=JSON.stringify(m.v); const same=js===c.lastJs; c.lastJs=js; c.view=m.v; c.lastSnap=Date.now(); c.pending=c.pending.filter(x=>!applied(m.v,x.patch)); if(!same) c.cbs.forEach(cb=>cb(clone(m.v))); c.waiters.splice(0).forEach(f=>f(c.view)); }
           if(m.t==='bad'){ flash('Этот браузер уже связан с другим участником. Войдите заново.',true); }
         });
         mq.sub(topicOf(code,'all'),m=>{ if(m.t==='host'){ hi(); resend(true); } });
@@ -551,7 +551,7 @@ function makeMqtt(){
     // действие считается доставленным, когда ведущая прислала состояние с ним; до этого повторяем
     const resend=(all)=>{ const now=Date.now(); c.pending=c.pending.filter(x=>x.tries<8); for(const x of c.pending){ if(!(c.mq&&c.mq.open)) return; if(all||now-x.at>2500){ x.at=now; x.tries++; c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch:x.patch}); } } };
     c.send=(patch)=>{ c.pending.push({patch,at:Date.now(),tries:0}); if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch}); };
-    c.hb=setInterval(hi,10000); c.rt=setInterval(()=>resend(false),1000);
+    c.hb=setInterval(hi,5000); c.rt=setInterval(()=>resend(false),1000);
     c.stop=()=>{ c.stopped=true; clearInterval(c.hb); clearInterval(c.rt); try{ c.mq&&c.mq.close(); }catch(e){} };
     connect();
     return c;
@@ -592,11 +592,11 @@ const revCount = p => CATS.filter(c=>p.revealed?.[c.k]).length;
 function allowedCats(room,p){
   if(!room || room.meta.phase!=='game' || !p || p.out || !p.card) return [];
   const rev=p.revealed||{};
-  if(revCount(p) < revealLimit(room)) return CATS.map(c=>c.k).filter(k=>!rev[k]);
-  return [];
+  if(openedThisRound(room,p)) return [];
+  return CATS.map(c=>c.k).filter(k=>!rev[k]);
 }
-// по одной любой характеристике за раунд (тайная связь не считается)
-const revealLimit = room => (room?.meta?.round||1);
+// игрок сам открыл характеристику в текущем раунде (открытое ведущей и тайная связь не считаются)
+const openedThisRound=(room,p)=>CATS.some(c=>p.revealed?.[c.k]===(room?.meta?.round||1));
 function genBio(){ const age=randInt(18,72); return {age, text:`${Math.random()<.5?'Женщина':'Мужчина'}, ${age} ${plural(age,'год','года','лет')} · ${pick(BODY)} телосложение`}; }
 function genProf(name,age){ const exp=randInt(0,Math.max(0,Math.min(30,age-19))); return `${name} · ${exp===0?'без опыта':'стаж '+exp+' '+plural(exp,'год','года','лет')}`; }
 function dealCards(n){
@@ -790,7 +790,7 @@ const A = {
   reveal(pid,cat,byHost){
     const room=S.room; const p=room.players[pid]; if(!p) return;
     if(!byHost && !(cat==='link'&&p.card?.link) && !allowedCats(room,{id:pid,...p}).includes(cat)) return flash('Сейчас эту характеристику открыть нельзя',true);
-    const patch={['players/'+pid+'/revealed/'+cat]:true};
+    const patch={['players/'+pid+'/revealed/'+cat]:(byHost||cat==='link')?true:(room.meta.round||1)};
     logEntry(patch,cat==='link'?`${p.name} раскрывает тайную связь: ${p.card.link}`:`${p.name} открывает «${CAT[cat]}»: ${p.card[cat]}`);
     return A.upd(patch);
   },
@@ -870,7 +870,7 @@ const A = {
   rejectSpecial(pid){ return A.upd({['players/'+pid+'/specialState']:null}); },
   botsReveal(){
     const room=S.room; const patch={};
-    aliveOf(room).filter(p=>p.bot).forEach(p=>{ const al=allowedCats(room,p); if(!al.length) return; const c=pick(al); patch['players/'+p.id+'/revealed/'+c]=true; logEntry(patch,`${p.name} открывает «${CAT[c]}»: ${p.card[c]}`); });
+    aliveOf(room).filter(p=>p.bot).forEach(p=>{ const al=allowedCats(room,p); if(!al.length) return; const c=pick(al); patch['players/'+p.id+'/revealed/'+c]=(room.meta.round||1); logEntry(patch,`${p.name} открывает «${CAT[c]}»: ${p.card[c]}`); });
     if(!Object.keys(patch).length) return flash('Боты уже открыли всё, что можно в этом раунде');
     return A.upd(patch);
   },
@@ -949,6 +949,8 @@ function render(){
   else if(S.screen==='join') html=joinHTML();
   else if(S.screen==='room') html=roomHTML();
   if(S.flash) html+=`<div class="flash ${S.flash.bad?'bad':''}" role="status">${esc(S.flash.text)}</div>`;
+  // ничего не поменялось — не перерисовываем, чтобы не сбивать нажатия
+  if(html===S.lastHtml) return; S.lastHtml=html;
   // выбранные значения в списках не сбрасываются, когда экран обновляется
   const keep={}; document.querySelectorAll('#app select[id]').forEach(e=>{ keep[e.id]=e.value; });
   document.getElementById('app').innerHTML=html;
@@ -1048,7 +1050,8 @@ function hostHTML(room){
   if(m.phase==='game'){
     if(!v){
       const outs=ps.filter(p=>p.out);
-      vote=`<div class="panel"><span class="label">Голосование</span><p class="muted">Голосуют все, кто ещё в игре. Голос тайный, вы видите, кто за кого.</p><button class="btn primary" data-act="vote-start" ${al.length<2?'disabled':''}>Начать голосование · 2:00</button></div>
+      const waiting=al.filter(p=>allowedCats(room,p).length>0);
+      vote=`<div class="panel"><span class="label">Голосование</span>${waiting.length?`<p>Голосование откроется, когда все откроют характеристику раунда. Ждём: <b>${waiting.map(p=>esc(p.name)).join(', ')}</b></p>`:'<p class="muted">Все открыли характеристику. Голос тайный, вы видите, кто за кого.</p>'}<div class="row"><button class="btn primary" data-act="vote-start" ${al.length<2||waiting.length?'disabled':''}>Начать голосование · 2:00</button>${waiting.length&&al.length>=2?'<button class="btn ghost sm" data-act="vote-start">Начать, не дожидаясь</button>':''}</div></div>
       <div class="panel riot"><span class="label">Бунт</span><p class="muted">Те, кто вне бункера, выбирают, кого забрать из бункера. Голосуют только они. Лучше в середине игры.</p><button class="btn danger" data-act="riot" ${!outs.length||al.length<2?'disabled':''}>Начать бунт · 2:00</button>${outs.length?'':'<span class="muted" style="font-size:13px">Станет доступно, когда кто-то будет исключён.</span>'}</div>`;
     } else if(v.open){
       const votes=room.votes?.[v.id]||{}; const vs=votersOf(room); const notYet=vs.filter(p=>!votes[p.id]);
@@ -1121,8 +1124,8 @@ function playerHTML(room,pid,demo){
 
   const t=m.timer; const v=m.vote; const al=aliveOf(room);
   const allowed=allowedCats(room,me);
-  const limit=revealLimit(room); const opened=revCount(me); const left=Math.max(0,limit-opened);
-  const status=me.out?'Вы вне бункера':left?`Можно открыть ещё ${left}`:'В этом раунде вы уже открыли';
+  const left=allowed.length?1:0;
+  const status=me.out?'Вы вне бункера':left?'Откройте одну характеристику':openedThisRound(room,me)?'В этом раунде вы уже открыли':'Всё открыто';
   const dossier=`<section class="mycard">
     <div class="mc-head"><h2>Моя карточка</h2><span class="chip ${me.out?'bad':left?'on':''}">${status}</span></div>
     <div class="mc-grid">${CATS.map(c=>{ const r=me.revealed?.[c.k]; const can=allowed.includes(c.k);
