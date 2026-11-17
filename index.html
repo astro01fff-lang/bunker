@@ -325,7 +325,7 @@ const POOLS = {
  trait:['Прирождённый лидер','Конфликтный','Эмпатичный','Хладнокровный','Вспыльчивый','Педантичный','Оптимист','Пессимист','Трудоголик','Ленивый','Прямолинейный до грубости','Скрытный','Склонен к манипуляциям','Миротворец','Упрямый','Ответственный','Импульсивный','Терпеливый','Эгоист','Альтруист','Замкнутый','Общительный','Тревожный','Решительный','Перфекционист','Харизматичный','Подозрительный','Самоотверженный','Рассеянный','Дисциплинированный'],
  baggage:['Аптечка первой помощи','Набор хирургических инструментов','Семена овощей, 20 видов','Ружьё и 30 патронов','Рация с запасом батарей','Ящик консервов на месяц','Складная солнечная панель','Набор инструментов','Палатка и спальник','Энциклопедия выживания','Фильтр для воды на 5000 литров','Ноутбук с офлайн-копией Википедии','Гитара','Запас антибиотиков на полгода','Курица и петух','Удочки и снасти','Бензопила с канистрой топлива','Противогаз','Дозиметр','Механическая швейная машинка','Топор','Карта местности и компас','10 литров медицинского спирта','Мешок семенной пшеницы','Химические реактивы','Улей с пчёлами','Набор настольных игр','Телескоп','Рулон брезента','Витамины на год','Портативный генератор','Семейный фотоальбом','Арбалет и 20 болтов','Мешок соли, 20 кг','Велосипед','Кислородный баллон'],
  fact:['Служил в спецподразделении','Знает азбуку Морзе','Прошёл курс выживания в тайге','Говорит на четырёх языках','Умеет водить грузовик','Пережил авиакатастрофу','Вырос в деревне и умеет вести хозяйство','Знает, где спрятан склад с медикаментами','Чемпион области по стрельбе','Ходит во сне','Умеет принимать роды','Хорошо читает людей по мимике','Работал на атомной станции','Спит не больше четырёх часов в сутки','Знает расположение ещё одного бункера','Участвовал в арктической экспедиции','Был волонтёром в зоне ЧС','Изучал хирургию по самоучителю','Отлично ориентируется без карты','Скрывает долг в 3 млн рублей','Двое детей остались вне бункера','Фотографическая память','Знает рецепты 200 блюд','Тайно ведёт дневник обо всех вокруг','Чинит любые двигатели','Профессионально играет в покер','Провёл месяц в изоляции в научном эксперименте','Задерживает дыхание на 4 минуты','Совершил 300 прыжков с парашютом','Умеет класть печи','Очень громко храпит','Лично знаком с главой регионального МЧС','Умеет делать мыло и свечи','Был капитаном рыболовецкого судна','Сам построил дом'],
- special:['Можете поменяться одной своей характеристикой с любым игроком','Можете отменить один голос против себя в любом голосовании','Можете заставить любого игрока открыть выбранную вами характеристику','Ваш голос в одном голосовании считается за два','Можете защитить любого игрока от исключения в одном голосовании','Можете заменить свою карту «Здоровье» на новую','Можете тайно узнать у ведущей одну скрытую характеристику любого игрока','Можете заставить всех открыть «Профессию» одновременно','Можете поменяться багажом с любым игроком','Можете заменить «Фобию» любого игрока на новую']
+ special:['Можете поменяться одной своей характеристикой с любым игроком','Можете отменить один голос против себя в текущем голосовании','Можете заставить любого игрока открыть выбранную вами характеристику','Можете защитить любого игрока от исключения в этом раунде','Можете заменить свою карту «Здоровье» на новую случайную: она может оказаться лучше, а может и хуже','Можете заставить всех открыть «Профессию» одновременно','Можете поменяться багажом с любым игроком','Можете заменить «Фобию» любого игрока на новую']
 };
 const BOT_NAMES = ['Ольга','Дмитрий','Марина','Артём','Елена','Игорь','Светлана','Кирилл','Наталья','Павел','Юлия','Сергей','Ирина','Максим','Дарья','Андрей'];
 
@@ -635,8 +635,8 @@ function specialKind(text){
   if(/заменить свою карту «Здоровье»/.test(t)) return {type:'reroll',cat:'health',self:true};
   if(/заменить свою «Профессию»/.test(t)) return {type:'reroll',cat:'prof',self:true};
   if(/заменить «Фобию» любого игрока/.test(t)) return {type:'reroll',cat:'phobia'};
-  if(/отменить один голос против себя/.test(t)) return {type:'return',self:true};
-  if(/защитить любого игрока от исключения/.test(t)) return {type:'return'};
+  if(/отменить один голос против себя/.test(t)) return {type:'minus'};
+  if(/защитить любого игрока от исключения/.test(t)) return {type:'protect'};
   return {type:'plain'};
 }
 // кто голосует: в бунте только те, кто вне бункера; обычно только те, кто в игре
@@ -647,8 +647,11 @@ function tally(room){
   const v=room.meta.vote; const votes=(room.votes&&room.votes[v.id])||{}; const res={};
   Object.keys(v.candidates||{}).forEach(c=>res[c]=[]);
   for(const [voter,target] of Object.entries(votes)){ const p=room.players?.[voter]; if(!canVote(v,p)) continue; if(res[target]) res[target].push(voter); }
+  for(const id of Object.keys(v.minus||{})) if(res[id]&&res[id].length) res[id].pop();
   return res;
 }
+// кого нельзя исключить в этом раунде по особому условию
+const isProtected=(room,id)=>room?.meta?.protect?.[id]===(room?.meta?.round||1);
 const nameOf = (room,id) => room?.players?.[id]?.name || '—';
 
 
@@ -802,7 +805,7 @@ const A = {
   stopTimer(){ return A.upd({'meta/timer':null}); },
   nextRound(){ const r=(S.room.meta.round||1)+1; return A.upd(logEntry({'meta/round':r,'meta/timer':null},`Раунд ${r}. Каждый открывает одну характеристику на выбор.`)); },
   startVote(cands,riot){
-    const ids=cands||aliveOf(S.room).map(p=>p.id); if(ids.length<2) return flash('Для голосования нужно минимум 2 кандидата',true);
+    const ids=(cands||aliveOf(S.room).map(p=>p.id)).filter(id=>!isProtected(S.room,id)); if(ids.length<2) return flash('Для голосования нужно минимум 2 кандидата',true);
     if(riot && !playersOf(S.room).some(p=>p.out)) return flash('Для бунта нужен хотя бы один игрок вне бункера',true);
     const id='v'+B.now(); const endsAt=B.now()+120000;
     const patch={'meta/vote':{id,open:true,endsAt,candidates:Object.fromEntries(ids.map(x=>[x,true])),revote:!!cands,riot:!!riot},'meta/timer':{kind:'vote',endsAt,dur:120000}};
@@ -864,8 +867,11 @@ const A = {
     if(k.type==='reveal'){ if(!to) return flash('Выберите игрока',true); await A.reveal(to,cat,true); return A.upd(note(`${nameOf(room,to)} открывает «${CAT[cat]}»`)); }
     if(k.type==='revealAll'){ const patch=note('все открывают «'+CAT[cat]+'»'); aliveOf(room).forEach(x=>{ patch['players/'+x.id+'/revealed/'+cat]=true; }); return A.upd(patch); }
     if(k.type==='reroll'){ const who=k.self?pid:to; if(!who) return flash('Выберите игрока',true); await A.reroll(who,cat); return A.upd(note(k.self?'':`у игрока ${nameOf(room,who)}`)); }
-    if(k.type==='return'){ const who=k.self?pid:to; if(!who||!room.players[who]?.out) return flash(k.self?'Условие сработает, когда игрока исключат':'Выберите исключённого игрока',true);
-      const patch=note(`${nameOf(room,who)} возвращается в бункер`); patch['players/'+who+'/out']=null; patch['players/'+who+'/outRound']=null; return A.upd(patch); }
+    if(k.type==='minus'){ const v=room.meta.vote; if(!v||!v.candidates?.[pid]) return flash('Условие применяется во время голосования или сразу после него, до исключения',true);
+      const patch=note('снят один голос против себя'); patch['meta/vote/minus/'+pid]=true; return A.upd(patch); }
+    if(k.type==='protect'){ if(!to||room.players[to]?.out) return flash('Выберите игрока в бункере',true);
+      const patch=note(`${nameOf(room,to)} под защитой до конца раунда`); patch['meta/protect/'+to]=room.meta.round||1;
+      if(room.meta.vote?.open&&room.meta.vote.candidates?.[to]) patch['meta/vote/candidates/'+to]=null; return A.upd(patch); }
     return A.upd(note(''));
   },
   requestSpecial(pid){ return A.upd({['players/'+pid+'/specialState']:'pending'}); },
@@ -1029,7 +1035,7 @@ function hostHTML(room){
   // таблица
   const table=`<div class="tbl-wrap"><table class="dossiers"><thead><tr><th>Игрок</th>${CATS.map(c=>`<th>${c.t}</th>`).join('')}<th>Тайная связь</th><th>Особое условие</th></tr></thead><tbody>
   ${ps.map(p=>`<tr class="${p.out?'out':''} ${S.hostSel===p.id?'sel':''} ${t?.kind==='speech'&&t.pid===p.id?'speaking':''}">
-    <td><button class="pname" data-act="sel" data-pid="${p.id}">${esc(p.name)}<small>${p.out?'вне бункера':'открыто '+revCount(p)+'/8'}${!p.bot&&B.isOnline&&!B.isOnline(S.code,p.id)?' · <span style="color:var(--danger)">не в сети</span>':''}</small></button></td>
+    <td><button class="pname" data-act="sel" data-pid="${p.id}">${esc(p.name)}<small>${p.out?'вне бункера':'открыто '+revCount(p)+'/8'}${!p.bot&&B.isOnline&&!B.isOnline(S.code,p.id)?' · <span style="color:var(--danger)">не в сети</span>':''}${isProtected(room,p.id)?' · <span style="color:var(--ok)">под защитой</span>':''}</small></button></td>
     ${CATS.map(c=>{ const r=p.revealed?.[c.k]; return `<td><button class="cell ${r?'revealed':'hidden'}" data-act="cell" data-pid="${p.id}" data-cat="${c.k}" title="${r?'Нажмите, чтобы снова скрыть':'Нажмите, чтобы открыть всем'}">${esc(p.card?.[c.k])}</button></td>`; }).join('')}
     <td>${p.card?.link?`<button class="cell ${p.revealed?.link?'revealed':'hidden'}" data-act="cell" data-pid="${p.id}" data-cat="link" title="${p.revealed?.link?'Нажмите, чтобы снова скрыть':'Нажмите, чтобы открыть всем'}">${esc(p.card.link)}</button>`:'<div class="cell muted" style="cursor:default">—</div>'}</td>
     <td><div class="cell" style="cursor:default">${esc(p.card?.special)}<br>${p.specialState==='used'?'<span class="chip ok">применено</span>':p.specialState==='pending'?'<span class="chip on">ждёт решения</span>':''}</div></td>
@@ -1064,8 +1070,11 @@ function hostHTML(room){
         ${notYet.length?`<p class="muted" style="font-size:13px">Не проголосовали: ${notYet.map(p=>esc(p.name)).join(', ')}</p>`:''}
         <div class="row"><button class="btn primary" data-act="vote-close">Завершить голосование</button><button class="btn ghost sm" data-act="vote-cancel">Отменить</button>${hasBots?'<button class="btn sm" data-act="bots-vote">Боты голосуют</button>':''}</div></div>`;
     } else {
-      const res=tally(room); const lead=Math.max(0,...Object.values(res).map(a=>a.length)); const leaders=Object.keys(res).filter(k=>res[k].length===lead&&lead>0);
+      const res0=tally(room); const prot=Object.keys(res0).filter(k=>isProtected(room,k)); const res=Object.fromEntries(Object.entries(res0).filter(([k])=>!isProtected(room,k)));
+      const lead=Math.max(0,...Object.values(res).map(a=>a.length)); const leaders=Object.keys(res).filter(k=>res[k].length===lead&&lead>0);
+      const notes=[...prot.map(k=>`${esc(nameOf(room,k))} под защитой в этом раунде — исключить нельзя.`),...Object.keys(v.minus||{}).map(k=>`У игрока ${esc(nameOf(room,k))} снят один голос (особое условие).`)];
       vote=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,true)}
+        ${notes.map(n=>`<p class="muted" style="font-size:13px">${n}</p>`).join('')}
         ${lead===0?'<p class="muted">Никто не проголосовал.</p>':leaders.length>1?`<p>Ничья: ${leaders.map(x=>esc(nameOf(room,x))).join(', ')}. Решите сами или запустите переголосование.</p>`:''}
         <div class="row">${leaders.map(x=>`<button class="btn danger sm" data-act="exclude" data-pid="${x}">${v.riot?'Забрать из бункера':'Исключить'}: ${esc(nameOf(room,x))}</button>`).join('')}</div>
         <div class="row">${leaders.length>1?`<button class="btn sm" data-act="revote" data-ids="${leaders.join(',')}" data-riot="${v.riot?1:''}">Переголосовать между лидерами</button>`:''}<button class="btn ghost sm" data-act="vote-cancel">${v.riot?'Никого не забирать':'Никого не исключать'}</button></div></div>`;
@@ -1081,8 +1090,8 @@ function hostHTML(room){
     else if(k.type==='reveal'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others.filter(x=>!x.out))}</select><span class="muted">открывает</span>${catSel}`; btn='Открыть'; }
     else if(k.type==='revealAll'){ btn='Открыть всем «Профессию»'; }
     else if(k.type==='reroll'){ ctl=k.self?`<span class="muted">Новая карта «${CAT[k.cat]}» для ${esc(p.name)}</span>`:`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select><span class="muted">получает новую «${CAT[k.cat]}»</span>`; btn='Заменить'; }
-    else if(k.type==='return'){ if(k.self){ ctl=p.out?`<span class="muted">${esc(p.name)} вернётся в бункер</span>`:'<span class="muted">Сработает после исключения: игрок сможет вернуться</span>'; btn=p.out?'Вернуть в игру':''; }
-      else { ctl=outs.length?`<select id="sp-to-${p.id}"><option value="">кого вернуть</option>${opt(outs)}</select>`:'<span class="muted">Сработает после исключения: пока возвращать некого</span>'; btn=outs.length?'Вернуть в игру':''; } }
+    else if(k.type==='minus'){ const v=room.meta.vote; if(v&&v.candidates?.[p.id]){ ctl=`<span class="muted">Против ${esc(p.name)} будет снят один голос в текущем голосовании</span>`; btn='Снять голос'; } else { ctl='<span class="muted">Применяется во время голосования или сразу после него. Пока голосования нет — отложите</span>'; btn=''; } }
+    else if(k.type==='protect'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого защищает</option>${opt(ps.filter(x=>!x.out))}</select><span class="muted">не будет исключён в этом раунде</span>`; btn='Защитить'; }
     return `<div class="stack" style="gap:8px"><b>${esc(p.name)}${p.out?' (вне бункера)':''} применяет особое условие</b><span>${esc(p.card.special)}</span>${ctl?`<div class="row sp-row">${ctl}</div>`:''}<div class="row">${btn?`<button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">${btn}</button>`:''}<button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">${btn?'Отклонить':'Отложить'}</button></div></div>`; }).join('')}</div>`:'';
   const control=m.phase==='game'?`<div class="panel"><span class="label">Раунд ${m.round}</span>
     <p class="muted" style="font-size:13px">Каждый открывает одну любую характеристику. Открыли: ${al.filter(p=>!allowedCats(room,p).length).length} из ${al.length}.</p>
@@ -1157,7 +1166,7 @@ function playerHTML(room,pid,demo){
   const people=`<section class="board-wrap"><div class="mc-head"><h2>Общий стол</h2><span class="muted" style="font-size:13px">в бункере ${al.length} · мест ${m.target}</span></div>
     <div class="board-scroll"><table class="board"><thead><tr><th>Игрок</th>${CATS.map(c=>`<th>${c.t}</th>`).join('')}${anyLink?'<th>Тайная связь</th>':''}${anySp?'<th>Особое условие</th>':''}</tr></thead><tbody>
     ${boardPs.map(p=>{ const speaking=t?.kind==='speech'&&t.pid===p.id;
-      return `<tr class="${p.out?'out':''} ${speaking?'speaking':''} ${p.id===pid?'me':''}"><th scope="row"><span class="nm">${esc(p.name)}</span>${p.id===pid?'<span class="chip">вы</span>':''}${speaking?'<span class="chip on">говорит</span>':''}${p.out?'<span class="chip bad">не в бункере</span>':''}</th>
+      return `<tr class="${p.out?'out':''} ${speaking?'speaking':''} ${p.id===pid?'me':''}"><th scope="row"><span class="nm">${esc(p.name)}</span>${p.id===pid?'<span class="chip">вы</span>':''}${speaking?'<span class="chip on">говорит</span>':''}${p.out?'<span class="chip bad">не в бункере</span>':''}${isProtected(room,p.id)?'<span class="chip ok">под защитой</span>':''}</th>
       ${CATS.map(c=>cell(p,c.k,c.t)).join('')}${anyLink?cell(p,'link','Тайная связь'):''}${anySp?cell(p,'special','Особое условие'):''}</tr>`; }).join('')}
     </tbody></table></div></section>`;
 
