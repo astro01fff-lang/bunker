@@ -684,9 +684,13 @@ function assignLinks(ps){
     if(humans.length){ const h=pick(humans); removeFromFree(d); removeFromFree(h); const [hT,dT]=DOG_LINK(ps[h],ps[d]); ps[h].card.link=hT; ps[d].card.link=dT; pairs--; }
   }
   dogs.forEach(removeFromFree);
+  const MARRIAGE=new Set([LINKS[0],LINKS[1]]); // бывшие муж/жена и муж/жена
   const tpl=shuffle(LINKS);
   for(let k=0;k<pairs&&free.length>=2;k++){
-    const a=take(), b=take(); const [aT,bT]=tpl[k%tpl.length](ps[a],ps[b]);
+    const a=take(), b=take(); const ga=genderOf(ps[a].card), gb=genderOf(ps[b].card);
+    const mixed=(ga==='m'&&gb==='f')||(ga==='f'&&gb==='m');
+    const fit=tpl.filter(f=>mixed||!MARRIAGE.has(f)); const f=fit[k%fit.length];
+    const [aT,bT]=f(ps[a],ps[b]);
     ps[a].card.link=aT; if(bT) ps[b].card.link=bT;
   }
 }
@@ -790,7 +794,7 @@ const A = {
     ps.forEach((p,i)=>{ patch['players/'+p.id+'/card']=cards[i]; patch['players/'+p.id+'/revealed']=null; patch['players/'+p.id+'/out']=null; patch['players/'+p.id+'/specialState']=null; });
     Object.assign(patch,{'meta/phase':'game','meta/round':1,'meta/target':target,'meta/startedAt':B.now(),'meta/timer':null,'meta/vote':null});
     logEntry(patch,`Игра началась. Сценарий: ${scenarioOf(room).title}. Мест в бункере: ${target} из ${ps.length}.`);
-    logEntry(patch,'Раунд 1. Все открывают «Биологию» и коротко представляются.');
+    logEntry(patch,'Раунд 1 — знакомство: каждый открывает одну характеристику и рассказывает о себе. Голосования нет.');
     return A.upd(patch);
   },
   reveal(pid,cat,byHost){
@@ -1057,7 +1061,10 @@ function hostHTML(room){
   let vote='';
   const v=m.vote;
   if(m.phase==='game'){
-    if(!v){
+    if(!v && (m.round||1)===1){
+      const waiting=al.filter(p=>allowedCats(room,p).length>0);
+      vote=`<div class="panel"><span class="label">Раунд 1 · знакомство</span><p>Голосования в первом раунде нет. Каждый открывает одну характеристику и рассказывает о себе. Голосование начнётся со 2-го раунда.</p>${waiting.length?`<p class="muted" style="font-size:13px">Ещё не открыли: ${waiting.map(p=>esc(p.name)).join(', ')}</p>`:'<p class="muted" style="font-size:13px">Все открыли — нажмите «Следующий раунд».</p>'}</div>`;
+    } else if(!v){
       const outs=ps.filter(p=>p.out);
       const waiting=al.filter(p=>allowedCats(room,p).length>0);
       vote=`<div class="panel"><span class="label">Голосование</span>${waiting.length?`<p>Ещё не открыли характеристику раунда: <b>${waiting.map(p=>esc(p.name)+(!p.bot&&B.isOnline&&!B.isOnline(S.code,p.id)?' (не в сети)':'')).join(', ')}</b>. Голосование можно начать в любой момент.</p>`:'<p class="muted">Все открыли характеристику. Голос тайный, вы видите, кто за кого.</p>'}<div class="row"><button class="btn primary" data-act="vote-start" ${al.length<2?'disabled':''}>Начать голосование · 2:00</button></div></div>
