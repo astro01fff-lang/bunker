@@ -625,6 +625,9 @@ function dealCards(n){
   // необычная биология (вампир, зомби): ровно один игрок в каждой игре, не собака
   let monsterAt = -1; if(n>1){ do{ monsterAt=randInt(0,n-1); }while(monsterAt===dogAt); }
   const dogDecks={}; for(const k of Object.keys(DOG)) dogDecks[k]=shuffle(DOG[k]);
+  // собаке не выпадают условия на обмен (меняться ей не с кем)
+  if(dogAt>=0){ const sd=decks.special, di=dogAt%sd.length, isSw=t=>/^Можете поменяться/.test(t);
+    if(isSw(sd[di])){ const j=sd.findIndex(t=>!isSw(t)); if(j>=0) [sd[di],sd[j]]=[sd[j],sd[di]]; } }
   return Array.from({length:n},(_,i)=>{
     const bio=genBio();
     const special=decks.special[i%decks.special.length];
