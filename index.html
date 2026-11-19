@@ -353,7 +353,8 @@ POOLS.special.push('Можете назначить любого игрока с
  'Можете поменяться картой «Здоровье» с любым игроком',
  'Можете заменить свою «Профессию» на новую',
  'Можете вернуть в бункер одного исключённого игрока (после голосования)',
- 'Можете поменяться «Хобби» или «Фобией» с любым игроком');
+ 'Можете поменяться «Хобби» или «Фобией» с любым игроком',
+ 'Карантин: можете заставить любого игрока открыть «Здоровье»');
 
 /* ---------------- Утилиты ---------------- */
 const MEM = {};
@@ -634,6 +635,7 @@ function specialKind(text){
   if(/вернуть в бункер одного исключённого/.test(t)) return {type:'return'};
   if(/поменяться багажом/.test(t)) return {type:'swap',cat:'baggage'};
   if(/поменяться картой «Здоровье»/.test(t)) return {type:'swap',cat:'health'};
+  if(/^Карантин/.test(t)) return {type:'reveal',cat:'health'};
   if(/заставить любого игрока открыть/.test(t)) return {type:'reveal'};
   if(/заставить всех открыть «Профессию»/.test(t)) return {type:'revealAll',cat:'prof'};
   if(/заменить свою карту «Здоровье»/.test(t)) return {type:'reroll',cat:'health',self:true};
@@ -1100,7 +1102,7 @@ function hostHTML(room){
     const catSel=`<select id="sp-cat-${p.id}">${CATS.filter(c=>!k.cats||k.cats.includes(c.k)).map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select>`;
     let ctl='', btn='Подтвердить';
     if(k.type==='swap'){ ctl=`${k.cat?`<span class="muted">«${CAT[k.cat]}» с игроком</span>`:catSel+'<span class="muted">с игроком</span>'}<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select>`; btn='Поменять'; }
-    else if(k.type==='reveal'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others.filter(x=>!x.out))}</select><span class="muted">открывает</span>${catSel}`; btn='Открыть'; }
+    else if(k.type==='reveal'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others.filter(x=>!x.out))}</select><span class="muted">открывает</span>${k.cat?`<span class="muted">«${CAT[k.cat]}»</span>`:catSel}`; btn='Открыть'; }
     else if(k.type==='revealAll'){ btn='Открыть всем «Профессию»'; }
     else if(k.type==='reroll'){ ctl=k.self?`<span class="muted">Новая карта «${CAT[k.cat]}» для ${esc(p.name)}</span>`:`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select><span class="muted">получает новую «${CAT[k.cat]}»</span>`; btn='Заменить'; }
     else if(k.type==='minus'){ const v=room.meta.vote; if(v&&v.candidates?.[p.id]){ ctl=`<span class="muted">Против ${esc(p.name)} будет снят один голос в текущем голосовании</span>`; btn='Снять голос'; } else { ctl='<span class="muted">Применяется во время голосования или сразу после него. Пока голосования нет — отложите</span>'; btn=''; } }
