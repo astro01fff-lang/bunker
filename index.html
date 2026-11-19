@@ -349,8 +349,8 @@ const DOG = {
  fact:['Находит людей по запаху','Знает команды «сидеть», «лежать», «ко мне»','Чует опасность раньше людей','Греет лучше обогревателя','Однажды укусила почтальона','Может родить щенков']
 };
 const MONSTER_BIO=[
- g=>({age:312,text:`Вампир (${g==='f'?'женщина':'мужчина'}), 312 лет, выглядит на 30 · днём спит, не переносит чеснок`}),
- g=>({age:41,text:`Зомби в ремиссии (${g==='f'?'женщина':'мужчина'}), 41 год · иногда хочет мозгов`})
+ g=>({age:312,text:`Вампир (${g==='f'?'женщина':'мужчина'}), 312 лет, выглядит на 30`,fact:'Днём спит, не переносит чеснок'}),
+ g=>({age:41,text:`Зомби в ремиссии (${g==='f'?'женщина':'мужчина'}), 41 год`,fact:'Иногда хочет мозгов'})
 ];
 const isDog = card => !!card && String(card.bio||'').startsWith('Собака');
 POOLS.special.push('Можете назначить любого игрока своим адвокатом, и он защищает вас вместо вас',
@@ -627,9 +627,9 @@ function dealCards(n){
       const d=dogI++; const g=k=>dogDecks[k][d%dogDecks[k].length];
       return { bio:dogs[d], prof:g('prof'), health:g('health'), hobby:g('hobby'), phobia:g('phobia'), trait:g('trait'), baggage:g('baggage'), fact:g('fact'), special };
     }
-    if(i===monsterAt){ const mb=pick(MONSTER_BIO)(Math.random()<.5?'m':'f'); bio.text=mb.text; bio.age=mb.age; }
+    let monFact=null; if(i===monsterAt){ const mb=pick(MONSTER_BIO)(Math.random()<.5?'m':'f'); bio.text=mb.text; bio.age=mb.age; monFact=mb.fact; }
     const take=(k)=>{ if(funFor[k]&&funFor[k].has(i)){ const d=funDecks[k]; return d[[...funFor[k]].indexOf(i)%d.length]; } return decks[k][i%decks[k].length]; };
-    return { bio:bio.text, prof:genProf(decks.prof[i%decks.prof.length],bio.age), health:take('health'), hobby:take('hobby'), phobia:take('phobia'), trait:take('trait'), baggage:take('baggage'), fact:take('fact'), special };
+    return { bio:bio.text, prof:genProf(decks.prof[i%decks.prof.length],bio.age), health:take('health'), hobby:take('hobby'), phobia:take('phobia'), trait:take('trait'), baggage:take('baggage'), fact:monFact||take('fact'), special };
   });
 }
 function logEntry(patch,text){ patch['log/'+B.now()+'_'+rid(4)]={t:B.now(),text}; return patch; }
