@@ -745,7 +745,7 @@ const BUNKER_PHOBIA=['Клаустрофобия','Боязнь темноты',
 const CONFLICT=['Конфликтный','Вспыльчивый','Эгоист','манипуляциям','Душнила','Сплетник','Подозрительный','грубости'];
 const LEADER=['лидер','Миротворец','Харизматичный'];
 function epilogue(room,grp,outside){
-  const s=scenarioOf(room); const al=(grp||aliveOf(room)).filter(p=>p.card); const humans=al.filter(p=>!isDog(p.card));
+  const s=scenarioOf(room); const al=(grp||aliveOf(room)).filter(p=>p.card); const isVamp=p=>/^Вампир/.test(String(p.card.bio)), isZomb=p=>/^Зомби/.test(String(p.card.bio)); const humans=al.filter(p=>!isDog(p.card)&&!isVamp(p)&&!isZomb(p));
   const has=(p,cats,words)=>cats.some(c=>words.some(w=>String(p.card[c]||'').includes(w)));
   const names=ps=>ps.map(p=>p.name).join(', ');
   const lines=[]; let score=0;
@@ -755,12 +755,14 @@ function epilogue(room,grp,outside){
   const food=al.filter(p=>has(p,['prof'],['Агроном','Фермер','Повар','Пекарь','Охотник','Рыбак','Охотничья собака'])||has(p,['hobby'],['Садоводство','Рыбалка','Охота','Пчеловодство','Сыроварение','Лекарственные травы'])||has(p,['baggage'],['Семена','пшеницы','консервов','Курица','Удочки','Улей'])||has(p,['fact'],['Вырос в деревне','рецепты 200']));
   need('Еда',food,ps=>`Еду будут добывать и готовить: ${names(ps)}.`,'Никто не умеет выращивать или добывать еду. Когда запасы закончатся, начнётся голод.');
   const tech=al.filter(p=>has(p,['prof'],['Инженер','Электрик','Сантехник','Сварщик','Механик','Строитель','Плотник','Архитектор'])||has(p,['hobby'],['Столярное','Ремонт техники','Сборка электроники','Радиолюбительство'])||has(p,['baggage'],['Набор инструментов','генератор','солнечная панель'])||has(p,['fact'],['двигатели','класть печи','построил дом']));
+  al.filter(isZomb).forEach(p=>{ if(!tech.includes(p)) tech.push(p); });
   need('Ремонт и техника',tech,ps=>`${outside?'Строить укрытия и чинить будут':'Чинить бункер будут'}: ${names(ps)}.`,outside?'Некому построить надёжное укрытие и починить снаряжение.':'Некому чинить генератор, фильтры и вентиляцию. Первая же поломка станет бедой.');
   const guard=al.filter(p=>has(p,['prof'],['Офицер запаса','Полицейский','Пожарный','Охотник','Сторожевая собака','Служебная собака'])||has(p,['baggage'],['Ружьё','Арбалет','Топор'])||has(p,['fact'],['спецподразделении','по стрельбе']));
+  al.filter(isVamp).forEach(p=>{ if(!guard.includes(p)) guard.push(p); });
   need('Защита',guard,ps=>`${outside?'Охранять поселение':'Охранять бункер'} будут: ${names(ps)}.`,outside?'Защищаться нечем и некому. Поселение беззащитно.':'Защищаться нечем и некому. Бункер уязвим для чужаков.');
   const young=humans.filter(p=>{ const a=parseInt((String(p.card.bio).match(/(\d+)/)||[])[1],10); return a<=45; });
   const fut=young.some(p=>genderOf(p.card)==='f')&&young.some(p=>genderOf(p.card)==='m');
-  if(fut){ score++; lines.push({ok:true,title:'Будущее',text:'В бункере есть молодые мужчины и женщины. У человечества есть шанс на новое поколение.'}); }
+  if(fut){ score++; lines.push({ok:true,title:'Будущее',text:`${outside?'В поселении':'В бункере'} есть молодые мужчины и женщины. У человечества есть шанс на новое поколение.`}); }
   else lines.push({ok:false,title:'Будущее',text:'Продолжить род некому. Даже если они выживут, это последнее поколение.'});
   const key=SCEN_KEY[s.id]; if(key){ const ks=al.filter(p=>has(p,['prof','hobby','baggage','fact'],key.w)); need(key.t,ks,ps=>`Под эту катастрофу пригодятся: ${names(ps)}.`,'Никто не готов именно к этой катастрофе.'); }
   let sick=al.filter(p=>has(p,['health'],SEVERE));
@@ -772,6 +774,9 @@ function epilogue(room,grp,outside){
   const cf=al.filter(p=>has(p,['trait'],CONFLICT)); const ld=al.filter(p=>has(p,['trait'],LEADER));
   if(cf.length>=2){ score--; lines.push({ok:false,title:'Отношения',text:`Будут ссоры: ${cf.map(p=>`${p.name} (${p.card.trait.toLowerCase()})`).join(', ')}.${ld.length?` Мирить всех придётся игроку ${ld[0].name}.`:''}`}); }
   else if(ld.length) lines.push({ok:true,title:'Отношения',text:`Удерживать команду вместе ${ld.length>1?'будут':'будет'} ${names(ld)}.`});
+  const place=outside?'поселение':'бункер', placeIn=outside?'В поселении':'В тесном бункере';
+  al.filter(isVamp).forEach(p=>{ lines.push({ok:true,title:'Вампир',text:`${p.name} — ночной дозорный: днём спит, зато ночью охраняет ${place}.`}); score--; lines.push({ok:false,title:'Вампир',text:`${placeIn} рядом с людьми живёт вампир — ${p.name}.`}); });
+  al.filter(isZomb).forEach(p=>{ lines.push({ok:true,title:'Зомби',text:`${p.name} не чувствует боли: берёт на себя самую тяжёлую и опасную работу.`}); score--; lines.push({ok:false,title:'Зомби',text:`У игрока ${p.name} ремиссия может закончиться.`}); });
   const dogs=al.filter(p=>isDog(p.card)); if(dogs.length) lines.push({ok:true,title:'Собака',text:`${names(dogs)}: поднимает всем настроение и греет по ночам.`});
   const v= outside
     ? (score>=4?{k:'ok',t:'Выжили',x:`Поселение снаружи выстояло. Через ${s.time} они встретят тех, кто выйдет из бункера.`}
