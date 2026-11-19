@@ -359,7 +359,9 @@ POOLS.special.push('Можете назначить любого игрока с
  'Можете заменить свою «Профессию» на новую',
  'Можете вернуть в бункер одного исключённого игрока (после голосования)',
  'Можете поменяться «Хобби» или «Фобией» с любым игроком',
- 'Карантин: можете заставить любого игрока открыть «Здоровье»');
+ 'Карантин: можете заставить любого игрока открыть «Здоровье»',
+ 'Иммунитет: вас нельзя изгнать в текущем голосовании, даже если против вас проголосовало большинство',
+ 'Перенаправление: можете заставить любого игрока проголосовать против указанной вами цели');
 
 /* ---------------- Утилиты ---------------- */
 const MEM = {};
@@ -505,10 +507,10 @@ function makeMqtt(){
     if(!h.toks[uid]){ h.toks[uid]=m.k; save(h); }
     h.conns.set(uid,{t:Date.now(),link});
     if(m.t==='hi'){ link.mq.pub(topicOf(h.code,'d/'+uid),{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); return; }
-    if(m.t==='patch'&&m.patch&&typeof m.patch==='object'){ const ok=validate(h.state,uid,m.patch); if(Object.keys(ok).length) hostApply(h,ok); else sendTo(h,uid,{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); }
+    if(m.t==='patch'&&m.patch&&typeof m.patch==='object'){ const ok=validate(h.state,uid,m.patch,m.r); if(Object.keys(ok).length) hostApply(h,ok); else sendTo(h,uid,{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); }
   }
   // участник может менять только своё: вход, открытие характеристики, голос, запрос особого условия
-  function validate(st,uid,patch){
+  function validate(st,uid,patch,r){
     const out={}; const meta=st.meta||{}; const me=st.players?.[uid];
     for(const [k,val] of Object.entries(patch)){
       const q=k.split('/');
@@ -517,13 +519,13 @@ function makeMqtt(){
           out[k]={name:val.name.trim().slice(0,24),joinedAt:Date.now()};
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='revealed'&&q.length===4&&val){
         const cat=q[3];
-        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.revealed?.[cat]&&(cat==='link'?!!me.card.link:allowedCats(st,me).includes(cat))){
+        if(me&&me.card&&!me.out&&meta.phase==='game'&&!me.revealed?.[cat]&&(r==null||cat==='link'||r===(meta.round||1))&&(cat==='link'?!!me.card.link:allowedCats(st,me).includes(cat))){
           out[k]=cat==='link'?true:(meta.round||1); out['log/'+Date.now()+'_'+rid(4)]={t:Date.now(),text:cat==='link'?`${me.name} раскрывает тайную связь: ${me.card.link}`:`${me.name} открывает «${CAT[cat]}»: ${me.card[cat]}`};
         }
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='specialState'&&q.length===3&&val==='pending'){
         if(me&&me.card&&meta.phase==='game'&&!me.specialState) out[k]='pending';
       } else if(q[0]==='votes'&&q.length===3&&q[2]===uid){
-        const v=meta.vote; if(v&&v.open&&q[1]===v.id&&canVote(v,me)&&v.candidates?.[val]&&val!==uid) out[k]=val;
+        const v=meta.vote; if(v&&v.open&&q[1]===v.id&&canVote(v,me)&&v.candidates?.[val]&&val!==uid&&!v.forced?.[uid]) out[k]=val;
       }
     }
     return out;
@@ -559,8 +561,8 @@ function makeMqtt(){
       if(!c.stopped) setTimeout(connect,5000);
     };
     // действие считается доставленным, когда ведущая прислала состояние с ним; до этого повторяем
-    const resend=(all)=>{ const now=Date.now(); c.pending=c.pending.filter(x=>x.tries<8); for(const x of c.pending){ if(!(c.mq&&c.mq.open)) return; if(all||now-x.at>2500){ x.at=now; x.tries++; c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch:x.patch}); } } };
-    c.send=(patch)=>{ c.pending.push({patch,at:Date.now(),tries:0}); if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch}); };
+    const resend=(all)=>{ const now=Date.now(); c.pending=c.pending.filter(x=>x.tries<8&&now-x.born<15000); for(const x of c.pending){ if(!(c.mq&&c.mq.open)) return; if(all||now-x.at>2500){ x.at=now; x.tries++; c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch:x.patch,r:x.r}); } } };
+    c.send=(patch)=>{ const r=c.view?.meta?.round||0; c.pending.push({patch,at:Date.now(),born:Date.now(),tries:0,r}); if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch,r}); };
     c.hb=setInterval(hi,5000); c.rt=setInterval(()=>resend(false),1000);
     c.stop=()=>{ c.stopped=true; clearInterval(c.hb); clearInterval(c.rt); try{ c.mq&&c.mq.close(); }catch(e){} };
     connect();
@@ -644,6 +646,8 @@ function specialKind(text){
   if(/поменяться багажом/.test(t)) return {type:'swap',cat:'baggage'};
   if(/поменяться картой «Здоровье»/.test(t)) return {type:'swap',cat:'health'};
   if(/^Карантин/.test(t)) return {type:'reveal',cat:'health'};
+  if(/^Иммунитет/.test(t)) return {type:'immune'};
+  if(/^Перенаправление/.test(t)) return {type:'redirect'};
   if(/заставить любого игрока открыть/.test(t)) return {type:'reveal'};
   if(/заставить всех открыть «Профессию»/.test(t)) return {type:'revealAll',cat:'prof'};
   if(/заменить свою карту «Здоровье»/.test(t)) return {type:'reroll',cat:'health',self:true};
@@ -660,7 +664,8 @@ function tally(room){
   if(room._counts) return Object.fromEntries(Object.entries(room._counts).map(([c,n])=>[c,Array(n).fill('')]));
   const v=room.meta.vote; const votes=(room.votes&&room.votes[v.id])||{}; const res={};
   Object.keys(v.candidates||{}).forEach(c=>res[c]=[]);
-  for(const [voter,target] of Object.entries(votes)){ const p=room.players?.[voter]; if(!canVote(v,p)) continue; if(res[target]) res[target].push(voter); }
+  const all=Object.assign({},votes,v.forced||{});
+  for(const [voter,target] of Object.entries(all)){ const p=room.players?.[voter]; if(!canVote(v,p)) continue; if(res[target]) res[target].push(voter); }
   for(const id of Object.keys(v.minus||{})) if(res[id]&&res[id].length) res[id].pop();
   return res;
 }
@@ -675,7 +680,7 @@ function plannedOut(room){
   return r>=LAST_ROUND?left:Math.floor(left/k);
 }
 // кого нельзя исключить в этом раунде по особому условию
-const isProtected=(room,id)=>room?.meta?.protect?.[id]===(room?.meta?.round||1);
+const isProtected=(room,id)=>room?.meta?.protect?.[id]===(room?.meta?.round||1) || (!!room?.meta?.vote && room.meta.vote.immune?.[id]===true);
 const nameOf = (room,id) => room?.players?.[id]?.name || '—';
 
 
@@ -834,7 +839,7 @@ const A = {
   nextRound(){ const r=(S.room.meta.round||1)+1; return A.upd(logEntry({'meta/round':r,'meta/timer':null},`Раунд ${r}. Каждый открывает одну характеристику на выбор.`)); },
   startVote(cands,riot,needArg){
     const need=riot?1:(needArg||Math.max(1,plannedOut(S.room)));
-    const ids=(cands||aliveOf(S.room).map(p=>p.id)).filter(id=>!isProtected(S.room,id)); if(ids.length<2) return flash('Для голосования нужно минимум 2 кандидата',true);
+    const ids=(cands||aliveOf(S.room).map(p=>p.id)).filter(id=>S.room.meta.protect?.[id]!==(S.room.meta.round||1)); if(ids.length<2) return flash('Для голосования нужно минимум 2 кандидата',true);
     if(riot && !playersOf(S.room).some(p=>p.out)) return flash('Для бунта нужен хотя бы один игрок вне бункера',true);
     const id='v'+B.now(); const endsAt=B.now()+120000;
     const patch={'meta/vote':{id,open:true,endsAt,candidates:Object.fromEntries(ids.map(x=>[x,true])),revote:!!cands,riot:!!riot,need},'meta/timer':{kind:'vote',endsAt,dur:120000}};
@@ -842,7 +847,7 @@ const A = {
       :(cands?`Переголосование между: ${ids.map(x=>nameOf(S.room,x)).join(', ')}.`:`Голосование открыто. 2 минуты.${need>1?' В этом голосовании выбывают '+outWord(need)+'.':''}`);
     return A.upd(logEntry(patch,txt));
   },
-  vote(voter,target){ const v=S.room.meta.vote; if(!v||!v.open) return; return A.upd({['votes/'+v.id+'/'+voter]:target}); },
+  vote(voter,target){ const v=S.room.meta.vote; if(!v||!v.open) return; if(v.forced?.[voter]) return flash('Ваш голос перенаправлен особым условием',true); return A.upd({['votes/'+v.id+'/'+voter]:target}); },
   closeVote(){ if(!S.room.meta.vote) return; return A.upd(logEntry({'meta/vote/open':false,'meta/timer':null},'Голосование закрыто.')); },
   cancelVote(){ return A.upd(logEntry({'meta/vote':null,'meta/timer':null},'Голосование отменено ведущей.')); },
   exclude(pid){
@@ -911,6 +916,11 @@ const A = {
       const patch=note('снят один голос против себя'); patch['meta/vote/minus/'+pid]=true; return A.upd(patch); }
     if(k.type==='return'){ if(!to||!room.players[to]?.out) return flash('Выберите исключённого игрока',true);
       const patch=note(`${nameOf(room,to)} возвращается в бункер`); patch['players/'+to+'/out']=null; patch['players/'+to+'/outRound']=null; return A.upd(patch); }
+    if(k.type==='immune'){ const v=room.meta.vote; if(!v) return flash('Иммунитет применяется во время голосования или сразу после него, до исключения',true);
+      const patch=note('иммунитет в текущем голосовании'); patch['meta/vote/immune/'+pid]=true; return A.upd(patch); }
+    if(k.type==='redirect'){ const v=room.meta.vote; if(!v||!v.open) return flash('Перенаправление применяется во время голосования',true);
+      const tg=val('sp-tg-'+pid); if(!to||!tg) return flash('Выберите, чей голос и против кого',true); if(to===tg) return flash('Игрок не может голосовать против себя',true); if(!v.candidates?.[tg]) return flash('Этого игрока нет среди вариантов голосования',true);
+      const patch=note(`голос игрока ${nameOf(room,to)} — против ${nameOf(room,tg)}`); patch['meta/vote/forced/'+to]=tg; return A.upd(patch); }
     if(k.type==='protect'){ if(!to||room.players[to]?.out) return flash('Выберите игрока в бункере',true);
       const patch=note(`${nameOf(room,to)} под защитой до конца раунда`); patch['meta/protect/'+to]=room.meta.round||1;
       if(room.meta.vote?.open&&room.meta.vote.candidates?.[to]) patch['meta/vote/candidates/'+to]=null; return A.upd(patch); }
@@ -1122,7 +1132,7 @@ function hostHTML(room){
       const bnd=ranked.length>=need?res[ranked[need-1]].length:0;
       const sure=ranked.filter(k=>res[k].length>bnd); const tiedB=ranked.filter(k=>res[k].length===bnd&&bnd>0);
       const nm=ids=>ids.map(x=>esc(nameOf(room,x))).join(' и ');
-      const notes=[...prot.map(k=>`${esc(nameOf(room,k))} под защитой в этом раунде — исключить нельзя.`),...Object.keys(v.minus||{}).map(k=>`У игрока ${esc(nameOf(room,k))} снят один голос (особое условие).`)];
+      const notes=[...prot.map(k=>v.immune?.[k]?`${esc(nameOf(room,k))}: иммунитет — не выбывает, хотя голоса есть.`:`${esc(nameOf(room,k))} под защитой в этом раунде — исключить нельзя.`),...Object.entries(v.forced||{}).map(([a,b])=>`Голос игрока ${esc(nameOf(room,a))} перенаправлен против ${esc(nameOf(room,b))}.`),...Object.keys(v.minus||{}).map(k=>`У игрока ${esc(nameOf(room,k))} снят один голос (особое условие).`)];
       vote=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,true)}
         ${notes.map(n=>`<p class="muted" style="font-size:13px">${n}</p>`).join('')}
         ${need>1?(ranked.length<need?'<p class="muted">Голосов мало, чтобы выбрать ${outWord(need)}. Исключите вручную или переголосуйте.</p>':(sure.length+tiedB.length<=need?`<div class="row"><button class="btn danger sm" data-act="exclude-many" data-ids="${[...sure,...tiedB].join(',')}">Исключить: ${nm([...sure,...tiedB])}</button></div>`:`<p>Ничья за ${sure.length?'последнее место':'места'}: ${nm(tiedB)}.</p><div class="row"><button class="btn danger sm" data-act="exclude-revote" data-sure="${sure.join(',')}" data-tied="${tiedB.join(',')}" data-need="${need-sure.length}">${sure.length?`Исключить ${nm(sure)} и переголосовать`:'Переголосовать'} между ${nm(tiedB)}</button></div>`))
@@ -1143,6 +1153,10 @@ function hostHTML(room){
     else if(k.type==='reroll'){ ctl=k.self?`<span class="muted">Новая карта «${CAT[k.cat]}» для ${esc(p.name)}</span>`:`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select><span class="muted">получает новую «${CAT[k.cat]}»</span>`; btn='Заменить'; }
     else if(k.type==='minus'){ const v=room.meta.vote; if(v&&v.candidates?.[p.id]){ ctl=`<span class="muted">Против ${esc(p.name)} будет снят один голос в текущем голосовании</span>`; btn='Снять голос'; } else { ctl='<span class="muted">Применяется во время голосования или сразу после него. Пока голосования нет — отложите</span>'; btn=''; } }
     else if(k.type==='return'){ ctl=outs.length?`<select id="sp-to-${p.id}"><option value="">кого вернуть</option>${opt(outs)}</select>`:'<span class="muted">Пока никто не исключён — отложите до голосования</span>'; btn=outs.length?'Вернуть в игру':''; }
+    else if(k.type==='immune'){ if(room.meta.vote){ ctl=`<span class="muted">${esc(p.name)} не выбывает в текущем голосовании</span>`; btn='Дать иммунитет'; } else { ctl='<span class="muted">Применяется во время голосования. Пока голосования нет — отложите</span>'; btn=''; } }
+    else if(k.type==='redirect'){ const v=room.meta.vote; if(v&&v.open){ const voters=ps.filter(x=>canVote(v,x)); const cands=Object.keys(v.candidates||{});
+        ctl=`<select id="sp-to-${p.id}"><option value="">чей голос</option>${opt(voters)}</select><span class="muted">голосует против</span><select id="sp-tg-${p.id}"><option value="">кого</option>${cands.map(c=>`<option value="${c}">${esc(nameOf(room,c))}</option>`).join('')}</select>`; btn='Перенаправить'; }
+      else { ctl='<span class="muted">Применяется во время голосования. Пока голосование не открыто — отложите</span>'; btn=''; } }
     else if(k.type==='protect'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого защищает</option>${opt(ps.filter(x=>!x.out))}</select><span class="muted">не будет исключён в этом раунде</span>`; btn='Защитить'; }
     return `<div class="stack" style="gap:8px"><b>${esc(p.name)}${p.out?' (вне бункера)':''} применяет особое условие</b><span>${esc(p.card.special)}</span>${ctl?`<div class="row sp-row">${ctl}</div>`:''}<div class="row">${btn?`<button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">${btn}</button>`:''}<button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">${btn?'Отклонить':'Отложить'}</button></div></div>`; }).join('')}</div>`:'';
   const control=m.phase==='game'?`<div class="panel"><span class="label">Раунд ${m.round}</span>
@@ -1201,10 +1215,10 @@ function playerHTML(room,pid,demo){
 
   let voteBlock='';
   if(v&&v.open){
-    const myVote=room.votes?.[v.id]?.[pid]; const cands=Object.keys(v.candidates||{}).filter(c=>c!==pid&&room.players[c]);
+    const forcedTo=v.forced?.[pid]; const myVote=forcedTo||room.votes?.[v.id]?.[pid]; const cands=Object.keys(v.candidates||{}).filter(c=>c!==pid&&room.players[c]);
     const mayVote=canVote(v,me);
     voteBlock=`<div class="panel ${v.riot?'riot':''}"><div class="row"><h2 class="grow">${v.riot?'Бунт!':v.revote?'Переголосование':'Голосование'}</h2></div>${v.riot?'<p class="riot-text">'+RIOT_TEXT+'</p>':''}${timerHTML(t&&t.kind==='vote'?t:{endsAt:v.endsAt,dur:120000})}
-      ${!mayVote?`<p class="muted">${v.riot?'Вы в бункере. Сейчас голосуют только те, кто снаружи.':'Вы вне бункера и не голосуете.'}</p>`:`<p class="muted">${v.riot?'Кого забираем из бункера?':(v.need||1)>1?`Кого не берём в бункер? В этом голосовании выбывают ${outWord(v.need)} — у кого больше всего голосов.`:'Кого не берём в бункер?'} Голос тайный, его можно изменить до конца голосования.</p><div class="vote-grid">${cands.map(c=>`<button class="vote-opt ${myVote===c?'mine':''}" data-act="vote" data-pid="${pid}" data-target="${c}">${esc(nameOf(room,c))}</button>`).join('')}</div>${myVote?`<p class="muted">Ваш голос: ${esc(nameOf(room,myVote))}</p>`:''}`}</div>`;
+      ${!mayVote?`<p class="muted">${v.riot?'Вы в бункере. Сейчас голосуют только те, кто снаружи.':'Вы вне бункера и не голосуете.'}</p>`:`<p class="muted">${v.riot?'Кого забираем из бункера?':(v.need||1)>1?`Кого не берём в бункер? В этом голосовании выбывают ${outWord(v.need)} — у кого больше всего голосов.`:'Кого не берём в бункер?'} Голос тайный, его можно изменить до конца голосования.</p>${forcedTo?`<p><b>Ваш голос перенаправлен особым условием: против ${esc(nameOf(room,forcedTo))}</b></p>`:`<div class="vote-grid">${cands.map(c=>`<button class="vote-opt ${myVote===c?'mine':''}" data-act="vote" data-pid="${pid}" data-target="${c}">${esc(nameOf(room,c))}</button>`).join('')}</div>${myVote?`<p class="muted">Ваш голос: ${esc(nameOf(room,myVote))}</p>`:''}`}`}</div>`;
   } else if(v&&!v.open){
     voteBlock=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,false)}<p class="muted">Ведущая объявит решение.</p></div>`;
   }
