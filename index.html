@@ -351,7 +351,9 @@ const DOG = {
 const isDog = card => !!card && String(card.bio||'').startsWith('Собака');
 POOLS.special.push('Можете назначить любого игрока своим адвокатом, и он защищает вас вместо вас',
  'Можете поменяться картой «Здоровье» с любым игроком',
- 'Можете заменить свою «Профессию» на новую');
+ 'Можете заменить свою «Профессию» на новую',
+ 'Можете вернуть в бункер одного исключённого игрока (после голосования)',
+ 'Можете поменяться «Хобби» или «Фобией» с любым игроком');
 
 /* ---------------- Утилиты ---------------- */
 const MEM = {};
@@ -628,6 +630,8 @@ const RIOT_TEXT='Внимание! Те, кого вы оставили за д�
 function specialKind(text){
   const t=String(text||'');
   if(/поменяться одной своей характеристикой/.test(t)) return {type:'swap'};
+  if(/поменяться «Хобби» или «Фобией»/.test(t)) return {type:'swap',cats:['hobby','phobia']};
+  if(/вернуть в бункер одного исключённого/.test(t)) return {type:'return'};
   if(/поменяться багажом/.test(t)) return {type:'swap',cat:'baggage'};
   if(/поменяться картой «Здоровье»/.test(t)) return {type:'swap',cat:'health'};
   if(/заставить любого игрока открыть/.test(t)) return {type:'reveal'};
@@ -873,6 +877,8 @@ const A = {
     if(k.type==='reroll'){ const who=k.self?pid:to; if(!who) return flash('Выберите игрока',true); await A.reroll(who,cat); return A.upd(note(k.self?'':`у игрока ${nameOf(room,who)}`)); }
     if(k.type==='minus'){ const v=room.meta.vote; if(!v||!v.candidates?.[pid]) return flash('Условие применяется во время голосования или сразу после него, до исключения',true);
       const patch=note('снят один голос против себя'); patch['meta/vote/minus/'+pid]=true; return A.upd(patch); }
+    if(k.type==='return'){ if(!to||!room.players[to]?.out) return flash('Выберите исключённого игрока',true);
+      const patch=note(`${nameOf(room,to)} возвращается в бункер`); patch['players/'+to+'/out']=null; patch['players/'+to+'/outRound']=null; return A.upd(patch); }
     if(k.type==='protect'){ if(!to||room.players[to]?.out) return flash('Выберите игрока в бункере',true);
       const patch=note(`${nameOf(room,to)} под защитой до конца раунда`); patch['meta/protect/'+to]=room.meta.round||1;
       if(room.meta.vote?.open&&room.meta.vote.candidates?.[to]) patch['meta/vote/candidates/'+to]=null; return A.upd(patch); }
@@ -1091,13 +1097,14 @@ function hostHTML(room){
   const requests=pend.length?`<div class="panel banner stack">${pend.map(p=>{
     const k=specialKind(p.card.special); const others=ps.filter(x=>x.id!==p.id); const outs=ps.filter(x=>x.out);
     const opt=list=>list.map(x=>`<option value="${x.id}">${esc(x.name)}${x.out?' (вне бункера)':''}</option>`).join('');
-    const catSel=`<select id="sp-cat-${p.id}">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select>`;
+    const catSel=`<select id="sp-cat-${p.id}">${CATS.filter(c=>!k.cats||k.cats.includes(c.k)).map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select>`;
     let ctl='', btn='Подтвердить';
     if(k.type==='swap'){ ctl=`${k.cat?`<span class="muted">«${CAT[k.cat]}» с игроком</span>`:catSel+'<span class="muted">с игроком</span>'}<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select>`; btn='Поменять'; }
     else if(k.type==='reveal'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others.filter(x=>!x.out))}</select><span class="muted">открывает</span>${catSel}`; btn='Открыть'; }
     else if(k.type==='revealAll'){ btn='Открыть всем «Профессию»'; }
     else if(k.type==='reroll'){ ctl=k.self?`<span class="muted">Новая карта «${CAT[k.cat]}» для ${esc(p.name)}</span>`:`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select><span class="muted">получает новую «${CAT[k.cat]}»</span>`; btn='Заменить'; }
     else if(k.type==='minus'){ const v=room.meta.vote; if(v&&v.candidates?.[p.id]){ ctl=`<span class="muted">Против ${esc(p.name)} будет снят один голос в текущем голосовании</span>`; btn='Снять голос'; } else { ctl='<span class="muted">Применяется во время голосования или сразу после него. Пока голосования нет — отложите</span>'; btn=''; } }
+    else if(k.type==='return'){ ctl=outs.length?`<select id="sp-to-${p.id}"><option value="">кого вернуть</option>${opt(outs)}</select>`:'<span class="muted">Пока никто не исключён — отложите до голосования</span>'; btn=outs.length?'Вернуть в игру':''; }
     else if(k.type==='protect'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого защищает</option>${opt(ps.filter(x=>!x.out))}</select><span class="muted">не будет исключён в этом раунде</span>`; btn='Защитить'; }
     return `<div class="stack" style="gap:8px"><b>${esc(p.name)}${p.out?' (вне бункера)':''} применяет особое условие</b><span>${esc(p.card.special)}</span>${ctl?`<div class="row sp-row">${ctl}</div>`:''}<div class="row">${btn?`<button class="btn primary sm" data-act="sp-ok" data-pid="${p.id}">${btn}</button>`:''}<button class="btn ghost sm" data-act="sp-no" data-pid="${p.id}">${btn?'Отклонить':'Отложить'}</button></div></div>`; }).join('')}</div>`:'';
   const control=m.phase==='game'?`<div class="panel"><span class="label">Раунд ${m.round}</span>
