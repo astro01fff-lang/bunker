@@ -348,6 +348,10 @@ const DOG = {
  baggage:['Миска и мешок корма','Любимый мячик','Поводок и намордник','Лежанка','Изгрызенный тапок','Пакет косточек'],
  fact:['Находит людей по запаху','Знает команды «сидеть», «лежать», «ко мне»','Чует опасность раньше людей','Греет лучше обогревателя','Однажды укусила почтальона','Может родить щенков']
 };
+const MONSTER_BIO=[
+ g=>({age:312,text:`Вампир (${g==='f'?'женщина':'мужчина'}), 312 лет, выглядит на 30 · днём спит, не переносит чеснок`}),
+ g=>({age:41,text:`Зомби в ремиссии (${g==='f'?'женщина':'мужчина'}), 41 год · иногда хочет мозгов`})
+];
 const isDog = card => !!card && String(card.bio||'').startsWith('Собака');
 POOLS.special.push('Можете назначить любого игрока своим адвокатом, и он защищает вас вместо вас',
  'Можете поменяться картой «Здоровье» с любым игроком',
@@ -613,6 +617,8 @@ function dealCards(n){
   const dogs=shuffle(DOG_BIO); let dogI=0;
   // собака максимум одна на игру, примерно в 60% игр
   const dogAt = Math.random()<0.6 ? randInt(0,n-1) : -1;
+  // необычная биология (вампир, зомби): максимум один игрок, примерно в половине игр, не собака
+  let monsterAt = -1; if(n>1 && Math.random()<0.5){ do{ monsterAt=randInt(0,n-1); }while(monsterAt===dogAt); }
   const dogDecks={}; for(const k of Object.keys(DOG)) dogDecks[k]=shuffle(DOG[k]);
   return Array.from({length:n},(_,i)=>{
     const bio=genBio();
@@ -621,6 +627,7 @@ function dealCards(n){
       const d=dogI++; const g=k=>dogDecks[k][d%dogDecks[k].length];
       return { bio:dogs[d], prof:g('prof'), health:g('health'), hobby:g('hobby'), phobia:g('phobia'), trait:g('trait'), baggage:g('baggage'), fact:g('fact'), special };
     }
+    if(i===monsterAt){ const mb=pick(MONSTER_BIO)(Math.random()<.5?'m':'f'); bio.text=mb.text; bio.age=mb.age; }
     const take=(k)=>{ if(funFor[k]&&funFor[k].has(i)){ const d=funDecks[k]; return d[[...funFor[k]].indexOf(i)%d.length]; } return decks[k][i%decks[k].length]; };
     return { bio:bio.text, prof:genProf(decks.prof[i%decks.prof.length],bio.age), health:take('health'), hobby:take('hobby'), phobia:take('phobia'), trait:take('trait'), baggage:take('baggage'), fact:take('fact'), special };
   });
@@ -662,7 +669,7 @@ const nameOf = (room,id) => room?.players?.[id]?.name || '—';
 
 
 /* ---------------- Тайные связи ---------------- */
-function genderOf(card){ const b=String(card?.bio||''); return b.startsWith('Женщина')?'f':b.startsWith('Мужчина')?'m':'d'; }
+function genderOf(card){ const b=String(card?.bio||''); return (b.startsWith('Женщина')||b.includes('(женщина)'))?'f':(b.startsWith('Мужчина')||b.includes('(мужчина)'))?'m':'d'; }
 const g=(card,m,f)=>genderOf(card)==='f'?f:m;
 const LINKS=[
  (a,b)=>[`${b.name} — ${g(b.card,'ваш бывший муж','ваша бывшая жена')}. Расстались со скандалом.`,`${a.name} — ${g(a.card,'ваш бывший муж','ваша бывшая жена')}. Расстались со скандалом.`],
