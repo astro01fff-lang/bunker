@@ -327,7 +327,8 @@ const POOLS = {
  fact:['Служил в спецподразделении','Знает азбуку Морзе','Прошёл курс выживания в тайге','Говорит на четырёх языках','Умеет водить грузовик','Пережил авиакатастрофу','Вырос в деревне и умеет вести хозяйство','Знает, где спрятан склад с медикаментами','Чемпион области по стрельбе','Ходит во сне','Умеет принимать роды','Хорошо читает людей по мимике','Работал на атомной станции','Спит не больше четырёх часов в сутки','Знает расположение ещё одного бункера','Участвовал в арктической экспедиции','Был волонтёром в зоне ЧС','Изучал хирургию по самоучителю','Отлично ориентируется без карты','Скрывает долг в 3 млн рублей','Двое детей остались вне бункера','Фотографическая память','Знает рецепты 200 блюд','Тайно ведёт дневник обо всех вокруг','Чинит любые двигатели','Профессионально играет в покер','Провёл месяц в изоляции в научном эксперименте','Задерживает дыхание на 4 минуты','Совершил 300 прыжков с парашютом','Умеет класть печи','Очень громко храпит','Лично знаком с главой регионального МЧС','Умеет делать мыло и свечи','Был капитаном рыболовецкого судна','Сам построил дом'],
  special:['Можете поменяться одной своей характеристикой с любым игроком','Можете заставить любого игрока открыть выбранную вами характеристику','Можете защитить любого игрока от исключения в этом раунде','Можете заменить свою карту «Здоровье» на новую случайную: она может оказаться лучше, а может и хуже','Можете заставить всех открыть «Профессию» одновременно','Можете поменяться багажом с любым игроком','Можете заменить «Фобию» любого игрока на новую']
 };
-const BOT_NAMES = ['Ольга','Дмитрий','Марина','Артём','Елена','Игорь','Светлана','Кирилл','Наталья','Павел','Юлия','Сергей','Ирина','Максим','Дарья','Андрей'];
+const MAXP = 20; // максимум участников
+const BOT_NAMES = ['Ольга','Дмитрий','Марина','Артём','Елена','Игорь','Светлана','Кирилл','Наталья','Павел','Юлия','Сергей','Ирина','Максим','Дарья','Андрей','Тимур','Алина','Роман','Вика'];
 
 /* Смешные варианты: в каждой категории их получают 2–3 игрока, собаку в биологии примерно 1 из 8 */
 const DOG_BIO = ['Собака, 4 года · лабрадор, очень дружелюбная','Собака, 7 лет · такса, всех подозревает','Собака, 2 года · хаски, воет по ночам'];
@@ -512,7 +513,7 @@ function makeMqtt(){
     for(const [k,val] of Object.entries(patch)){
       const q=k.split('/');
       if(q[0]==='players'&&q[1]===uid&&q.length===2){
-        if(meta.phase==='lobby'&&!me&&Object.keys(st.players||{}).length<16&&val&&typeof val.name==='string'&&val.name.trim())
+        if(meta.phase==='lobby'&&!me&&Object.keys(st.players||{}).length<MAXP&&val&&typeof val.name==='string'&&val.name.trim())
           out[k]={name:val.name.trim().slice(0,24),joinedAt:Date.now()};
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='revealed'&&q.length===4&&val){
         const cat=q[3];
@@ -617,8 +618,8 @@ function dealCards(n){
   const dogs=shuffle(DOG_BIO); let dogI=0;
   // собака максимум одна на игру, примерно в 60% игр
   const dogAt = Math.random()<0.6 ? randInt(0,n-1) : -1;
-  // необычная биология (вампир, зомби): максимум один игрок, примерно в половине игр, не собака
-  let monsterAt = -1; if(n>1 && Math.random()<0.5){ do{ monsterAt=randInt(0,n-1); }while(monsterAt===dogAt); }
+  // необычная биология (вампир, зомби): ровно один игрок в каждой игре, не собака
+  let monsterAt = -1; if(n>1){ do{ monsterAt=randInt(0,n-1); }while(monsterAt===dogAt); }
   const dogDecks={}; for(const k of Object.keys(DOG)) dogDecks[k]=shuffle(DOG[k]);
   return Array.from({length:n},(_,i)=>{
     const bio=genBio();
@@ -784,7 +785,7 @@ const A = {
     if(!room||!room.meta) return B.mode==='mqtt'?'Не удалось найти игру с таким кодом. Проверьте код. Если код верный, у ведущей должна быть открыта вкладка с игрой.':'Игра с таким кодом не найдена. Проверьте код у ведущей.';
     if(saved && room.players?.[saved]){ location.hash='play-'+code; return null; }
     if(room.meta.phase!=='lobby') return 'Игра уже началась, новых участников добавить нельзя.';
-    if(playersOf(room).length>=16) return 'В игре уже 16 участников.';
+    if(playersOf(room).length>=MAXP) return `В игре уже ${MAXP} участников.`;
     const pid=S.pendingPid;
     await B.update(code,{['players/'+pid]:{name:name.slice(0,24),joinedAt:B.now()}});
     LS.set('bunker_pid_'+code,pid); S.joinedAt=Date.now(); setTimeout(()=>render(),10500);
@@ -795,7 +796,7 @@ const A = {
     const room=S.room; const used=new Set(playersOf(room).map(p=>p.name)); const free=BOT_NAMES.filter(x=>!used.has(x));
     const patch={}; const t=B.now();
     const label=nm=>B.mode==='local'?nm:'Бот '+nm;
-    free.filter(nm=>!used.has(label(nm))).slice(0,Math.min(n,16-playersOf(room).length)).forEach((nm,i)=>{ patch['players/bot_'+rid(6)]={name:label(nm),joinedAt:t+i,bot:true}; });
+    free.filter(nm=>!used.has(label(nm))).slice(0,Math.min(n,MAXP-playersOf(room).length)).forEach((nm,i)=>{ patch['players/bot_'+rid(6)]={name:label(nm),joinedAt:t+i,bot:true}; });
     return A.upd(patch);
   },
   dropBots(){ const patch={}; playersOf(S.room).filter(p=>p.bot).forEach(p=>{ patch['players/'+p.id]=null; }); return A.upd(patch); },
@@ -972,7 +973,7 @@ function barHTML(room){
   const m=room.meta; const s=scenarioOf(room); const ps=playersOf(room); const al=aliveOf(room);
   const phase=m.phase==='lobby'?'Сбор участников':m.phase==='final'?'Бункер закрыт':`Раунд ${m.round}`;
   return `<header class="bar"><div class="row"><span class="brand">БУНКЕР</span><span class="chip">${esc(S.code)}</span>${B.mode==='local'?'<span class="chip on">демо</span>':netChip()}</div>
-  <div class="stats">${m.phase!=='lobby'?`<div class="stat"><span class="label">Сценарий</span><b style="font-size:18px">${esc(s.title)}</b></div>`:''}<div class="stat"><span class="label">Этап</span><b style="font-size:18px">${phase}</b></div>${m.phase==='lobby'?`<div class="stat"><span class="label">Участников</span><b>${ps.length}/16</b></div>`:`<div class="stat"><span class="label">В игре</span><b>${al.length}</b></div><div class="stat"><span class="label">Мест</span><b>${m.target}</b></div>`}</div></header>`;
+  <div class="stats">${m.phase!=='lobby'?`<div class="stat"><span class="label">Сценарий</span><b style="font-size:18px">${esc(s.title)}</b></div>`:''}<div class="stat"><span class="label">Этап</span><b style="font-size:18px">${phase}</b></div>${m.phase==='lobby'?`<div class="stat"><span class="label">Участников</span><b>${ps.length}/${MAXP}</b></div>`:`<div class="stat"><span class="label">В игре</span><b>${al.length}</b></div><div class="stat"><span class="label">Мест</span><b>${m.target}</b></div>`}</div></header>`;
 }
 function voteResultsHTML(room,host){
   const v=room.meta.vote; const res=tally(room); const max=Math.max(1,...Object.values(res).map(a=>a.length));
@@ -1001,7 +1002,7 @@ function render(){
 
 function homeHTML(){
   return netWarnHTML()+`<section class="home-hero"><div class="hazard" style="max-width:220px"></div><h1>Бункер</h1>
-  <p style="max-width:60ch;font-size:17px">Командная игра на выживание до 16 человек. Катастрофа уже случилась, мест в убежище хватит только половине. У каждого есть личное дело, и его придётся защищать.</p></section>
+  <p style="max-width:60ch;font-size:17px">Командная игра на выживание до 20 человек. Катастрофа уже случилась, мест в убежище хватит только половине. У каждого есть личное дело, и его придётся защищать.</p></section>
   ${B.mode==='local'?`<div class="demo-note stack" style="margin-bottom:16px;gap:6px"><b>Демо-режим</b><span class="muted">Сеть для игры недоступна (так бывает в предпросмотре), поэтому игра работает только в этом браузере. На сайте игра подключится к сети сама. Запустите демо: в комнате уже будут 8 тестовых участников, а вы сможете посмотреть игру и их глазами.</span><div><button class="btn primary" data-act="demo">Запустить демо на 8 человек</button></div></div>`:''}
   <div class="home-grid">
     <div class="panel"><span class="label">Ведущая</span><h2>Создать игру</h2><p class="muted">Выберите сценарий и получите код и ссылку для участников.</p><div><button class="btn primary big" data-act="go-create">Создать игру</button></div></div>
@@ -1048,7 +1049,7 @@ function hostHTML(room){
     main=`<div class="panel codebox"><div class="hazard"></div><span class="label">Код для входа</span><div class="code-big">${esc(S.code)}</div>
       <label class="label" for="h-link">Ссылка для участников</label><div class="linkrow"><input id="h-link" type="text" readonly value="${esc(link)}"><button class="btn" data-act="copy">Скопировать</button></div>
       ${B.mode==='local'?'<span class="muted" style="font-size:13px">В демо-режиме ссылка работает только в этом браузере.</span>':'<span class="muted" style="font-size:13px">Не закрывайте эту вкладку до конца игры: игра идёт через неё. Если случайно закрыли или обновили, откройте её снова в этом же браузере, всё сохранится.</span>'}</div>
-      <div class="panel"><div class="row"><h2 class="grow">Участники · ${ps.length}</h2><button class="btn sm" data-act="bots-add" ${ps.length>=16?'disabled':''}>+ Бот</button><button class="btn sm" data-act="bots-fill" ${ps.length>=16?'disabled':''}>Заполнить ботами до 16</button>${ps.some(p=>p.bot)?'<button class="btn ghost sm" data-act="bots-drop">Убрать ботов</button>':''}</div>
+      <div class="panel"><div class="row"><h2 class="grow">Участники · ${ps.length}</h2><button class="btn sm" data-act="bots-add" ${ps.length>=MAXP?'disabled':''}>+ Бот</button><button class="btn sm" data-act="bots-fill" ${ps.length>=MAXP?'disabled':''}>Заполнить ботами до ${MAXP}</button>${ps.some(p=>p.bot)?'<button class="btn ghost sm" data-act="bots-drop">Убрать ботов</button>':''}</div>
       <span class="muted" style="font-size:13px">Боты нужны для пробной игры: ходы за них делаете вы кнопками «Боты открывают» и «Боты голосуют».</span>
       ${ps.length?`<div class="people">${ps.map(p=>`<div class="person"><div class="nm"><b>${esc(p.name)}</b><button class="btn ghost sm" data-act="kick" data-pid="${p.id}" aria-label="Удалить ${esc(p.name)}">Удалить</button></div></div>`).join('')}</div>`:'<p class="muted">Пока никого. Отправьте участникам код или ссылку.</p>'}</div>`;
     const def=Math.floor(ps.length/2)||1;
@@ -1231,7 +1232,7 @@ app.addEventListener('click',async e=>{
     case 'demo': await A.launchDemo(); break;
     case 'copy': { const inp=document.getElementById('h-link'); try{ await navigator.clipboard.writeText(inp.value); flash('Ссылка скопирована'); }catch(err){ inp.select(); flash('Выделила ссылку, скопируйте её вручную'); } break; }
     case 'bots-add': await A.addBots(1); break;
-    case 'bots-fill': await A.addBots(16); break;
+    case 'bots-fill': await A.addBots(MAXP); break;
     case 'bots-drop': await A.dropBots(); break;
     case 'kick': await A.removePlayer(pid); break;
     case 'start': await A.start(); break;
