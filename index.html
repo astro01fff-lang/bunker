@@ -358,6 +358,7 @@ POOLS.special.push('Можете назначить любого игрока с
  'Можете поменяться картой «Здоровье» с любым игроком',
  'Можете заменить свою «Профессию» на новую',
  'Можете вернуть в бункер одного исключённого игрока (после голосования)',
+ 'Второй шанс: если вас изгнали голосованием, вы можете один раз вернуться в игру',
  'Можете поменяться «Хобби» или «Фобией» с любым игроком',
  'Карантин: можете заставить любого игрока открыть «Здоровье»',
  'Иммунитет: вас нельзя изгнать в текущем голосовании, даже если против вас проголосовало большинство',
@@ -524,7 +525,7 @@ function makeMqtt(){
           out[k]=cat==='link'?true:(meta.round||1); out['log/'+Date.now()+'_'+rid(4)]={t:Date.now(),text:cat==='link'?`${me.name} раскрывает тайную связь: ${me.card.link}`:`${me.name} открывает «${CAT[cat]}»: ${me.card[cat]}`};
         }
       } else if(q[0]==='players'&&q[1]===uid&&q[2]==='specialState'&&q.length===3&&val==='pending'){
-        if(me&&me.card&&meta.phase==='game'&&!me.specialState) out[k]='pending';
+        if(me&&me.card&&(!me.out||specialKind(me.card.special).self===true&&specialKind(me.card.special).type==='return')&&meta.phase==='game'&&!me.specialState) out[k]='pending';
       } else if(q[0]==='votes'&&q.length===3&&q[2]===uid){
         const v=meta.vote; if(v&&v.open&&q[1]===v.id&&canVote(v,me)&&v.candidates?.[val]&&val!==uid&&!v.forced?.[uid]) out[k]=val;
       }
@@ -643,6 +644,7 @@ function specialKind(text){
   const t=String(text||'');
   if(/поменяться одной своей характеристикой/.test(t)) return {type:'swap'};
   if(/поменяться «Хобби» или «Фобией»/.test(t)) return {type:'swap',cats:['hobby','phobia']};
+  if(/^Второй шанс/.test(t)) return {type:'return',self:true};
   if(/вернуть в бункер одного исключённого/.test(t)) return {type:'return'};
   if(/поменяться багажом/.test(t)) return {type:'swap',cat:'baggage'};
   if(/поменяться картой «Здоровье»/.test(t)) return {type:'swap',cat:'health'};
@@ -921,7 +923,7 @@ const A = {
     if(k.type==='reroll'){ const who=k.self?pid:to; if(!who) return flash('Выберите игрока',true); await A.reroll(who,cat); return A.upd(note(k.self?'':`у игрока ${nameOf(room,who)}`)); }
     if(k.type==='minus'){ const v=room.meta.vote; if(!v||!v.candidates?.[pid]) return flash('Условие применяется во время голосования или сразу после него, до исключения',true);
       const patch=note('снят один голос против себя'); patch['meta/vote/minus/'+pid]=true; return A.upd(patch); }
-    if(k.type==='return'){ if(!to||!room.players[to]?.out) return flash('Выберите исключённого игрока',true);
+    if(k.type==='return'){ const to=k.self?pid:val('sp-to-'+pid); if(k.self&&!room.players[to]?.out) return flash('«Второй шанс» срабатывает только после изгнания',true); if(!to||!room.players[to]?.out) return flash('Выберите исключённого игрока',true);
       const patch=note(`${nameOf(room,to)} возвращается в бункер`); patch['players/'+to+'/out']=null; patch['players/'+to+'/outRound']=null; return A.upd(patch); }
     if(k.type==='gossip'){ if(!to) return flash('Выберите игрока',true); const tp=room.players[to];
       if(!tp?.card?.link){ return A.upd(note(`у игрока ${nameOf(room,to)} тайной связи нет`)); }
@@ -1162,7 +1164,8 @@ function hostHTML(room){
     else if(k.type==='revealAll'){ btn='Открыть всем «Профессию»'; }
     else if(k.type==='reroll'){ ctl=k.self?`<span class="muted">Новая карта «${CAT[k.cat]}» для ${esc(p.name)}</span>`:`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${opt(others)}</select><span class="muted">получает новую «${CAT[k.cat]}»</span>`; btn='Заменить'; }
     else if(k.type==='minus'){ const v=room.meta.vote; if(v&&v.candidates?.[p.id]){ ctl=`<span class="muted">Против ${esc(p.name)} будет снят один голос в текущем голосовании</span>`; btn='Снять голос'; } else { ctl='<span class="muted">Применяется во время голосования или сразу после него. Пока голосования нет — отложите</span>'; btn=''; } }
-    else if(k.type==='return'){ ctl=outs.length?`<select id="sp-to-${p.id}"><option value="">кого вернуть</option>${opt(outs)}</select>`:'<span class="muted">Пока никто не исключён — отложите до голосования</span>'; btn=outs.length?'Вернуть в игру':''; }
+    else if(k.type==='return'){ if(k.self){ if(p.out){ ctl=`<span class="muted">${esc(p.name)} изгнан и возвращается в бункер</span>`; btn='Вернуть в игру'; } else { ctl='<span class="muted">Срабатывает только после изгнания. Отложите</span>'; btn=''; } }
+      else { ctl=outs.length?`<select id="sp-to-${p.id}"><option value="">кого вернуть</option>${opt(outs)}</select>`:'<span class="muted">Пока никто не исключён — отложите до голосования</span>'; btn=outs.length?'Вернуть в игру':''; } }
     else if(k.type==='gossip'){ ctl=`<select id="sp-to-${p.id}"><option value="">кого назвал игрок</option>${others.map(x=>`<option value="${x.id}">${esc(x.name)}${x.card?.link?(x.revealed?.link?' — связь уже открыта':' — есть тайная связь'):' — связи нет'}</option>`).join('')}</select>`; btn='Раскрыть'; }
     else if(k.type==='immune'){ if(room.meta.vote){ ctl=`<span class="muted">${esc(p.name)} не выбывает в текущем голосовании</span>`; btn='Дать иммунитет'; } else { ctl='<span class="muted">Применяется во время голосования. Пока голосования нет — отложите</span>'; btn=''; } }
     else if(k.type==='redirect'){ const v=room.meta.vote; if(v&&v.open){ const voters=ps.filter(x=>canVote(v,x)); const cands=Object.keys(v.candidates||{});
@@ -1221,7 +1224,7 @@ function playerHTML(room,pid,demo){
       return `<div class="tile ${r?'is-open':''}"><span class="k">${c.t}</span><span class="v">${esc(me.card?.[c.k])}</span>${r?'<span class="tag">открыто</span>':can?`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="${c.k}">Открыть</button>`:''}</div>`; }).join('')}</div>
     <div class="mc-extra">
       ${me.card?.link?`<div class="tile wide ${me.revealed?.link?'is-open':''}"><span class="k">Тайная связь · в любой момент</span><span class="v">${esc(me.card.link)}</span>${me.revealed?.link?'<span class="tag">открыто</span>':me.out?'':`<button class="btn sm" data-act="reveal" data-pid="${pid}" data-cat="link">Открыть</button>`}</div>`:''}
-      <div class="tile wide ${me.specialState==='used'?'is-open':''}"><span class="k">Особое условие · одно на игру</span><span class="v">${esc(me.card?.special)}</span>${me.specialState==='used'?'<span class="tag">применено</span>':me.specialState==='pending'?'<span class="tag wait">ждёт ведущую</span>':`<button class="btn sm" data-act="sp-req" data-pid="${pid}">Применить</button>`}</div>
+      <div class="tile wide ${me.specialState==='used'?'is-open':''}"><span class="k">Особое условие · одно на игру</span><span class="v">${esc(me.card?.special)}</span>${me.specialState==='used'?'<span class="tag">применено</span>':me.specialState==='pending'?'<span class="tag wait">ждёт ведущую</span>':me.out&&!(specialKind(me.card?.special).type==='return'&&specialKind(me.card?.special).self)?'<span class="tag" style="color:#8a8574">вы вне бункера</span>':`<button class="btn sm" data-act="sp-req" data-pid="${pid}">${specialKind(me.card?.special).self&&specialKind(me.card?.special).type==='return'&&me.out?'Вернуться в игру':'Применить'}</button>`}</div>
     </div></section>`;
 
   let voteBlock='';
@@ -1234,7 +1237,7 @@ function playerHTML(room,pid,demo){
     voteBlock=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,false)}<p class="muted">Ведущая объявит решение.</p></div>`;
   }
   const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">${t.pid===pid?'Ваше слово':'Говорит'}</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}</div>`:'';
-  const outBanner=me.out?`<div class="banner bad"><b>Вы вне бункера.</b> Наблюдайте и голосуйте в бунте. Особое условие можно применить и сейчас.</div>`:'';
+  const outBanner=me.out?`<div class="banner bad"><b>Вы вне бункера.</b> Наблюдайте за игрой и голосуйте, если ведущая объявит бунт.</div>`:'';
 
   const boardPs=ps.filter(p=>!p.out).concat(ps.filter(p=>p.out));
   const cell=(p,k,label)=>{ const shown=k==='link'?(p.revealed?.link&&p.card?.link):p.revealed?.[k]; const v=k==='special'?(p.specialState==='used'?p.card?.special:''):shown?p.card?.[k]:'';
