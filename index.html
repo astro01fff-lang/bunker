@@ -509,7 +509,8 @@ function makeMqtt(){
     if(!h.toks[uid]){ h.toks[uid]=m.k; save(h); }
     h.conns.set(uid,{t:Date.now(),link});
     if(m.t==='hi'){ link.mq.pub(topicOf(h.code,'d/'+uid),{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); return; }
-    if(m.t==='patch'&&m.patch&&typeof m.patch==='object'){ const ok=validate(h.state,uid,m.patch,m.r); if(Object.keys(ok).length) hostApply(h,ok); else sendTo(h,uid,{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); }
+    if(m.t==='patch'&&m.patch&&typeof m.patch==='object'){ if(typeof m.sq==='number'){ h.sq=h.sq||{}; for(const k of Object.keys(m.patch)){ if(k.startsWith('log/')) continue; const kk=uid+'|'+k; if((h.sq[kk]||0)>m.sq) delete m.patch[k]; else h.sq[kk]=m.sq; } }
+      const ok=validate(h.state,uid,m.patch,m.r); if(Object.keys(ok).length) hostApply(h,ok); else sendTo(h,uid,{t:'snap',now:Date.now(),v:viewFor(h.state,uid)}); }
   }
   // участник может менять только своё: вход, открытие характеристики, голос, запрос особого условия
   function validate(st,uid,patch,r){
@@ -563,8 +564,8 @@ function makeMqtt(){
       if(!c.stopped) setTimeout(connect,5000);
     };
     // действие считается доставленным, когда ведущая прислала состояние с ним; до этого повторяем
-    const resend=(all)=>{ const now=Date.now(); c.pending=c.pending.filter(x=>x.tries<8&&now-x.born<15000); for(const x of c.pending){ if(!(c.mq&&c.mq.open)) return; if(all||now-x.at>2500){ x.at=now; x.tries++; c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch:x.patch,r:x.r}); } } };
-    c.send=(patch)=>{ const r=c.view?.meta?.round||0; c.pending.push({patch,at:Date.now(),born:Date.now(),tries:0,r}); if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch,r}); };
+    const resend=(all)=>{ const now=Date.now(); c.pending=c.pending.filter(x=>x.tries<8&&now-x.born<15000); for(const x of c.pending){ if(!(c.mq&&c.mq.open)) return; if(all||now-x.at>2500){ x.at=now; x.tries++; c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch:x.patch,r:x.r,sq:x.sq}); } } };
+    c.send=(patch)=>{ const r=c.view?.meta?.round||0; const sq=c.seq=Math.max((c.seq||0)+1,Date.now()); const keys=Object.keys(patch).filter(k=>!k.startsWith('log/')); c.pending=c.pending.filter(x=>!Object.keys(x.patch).some(k=>keys.includes(k))); c.pending.push({patch,at:Date.now(),born:Date.now(),tries:0,r,sq}); if(c.mq&&c.mq.open) c.mq.pub(topicOf(code,'up'),{t:'patch',u:uid,k:tok,patch,r,sq}); };
     c.hb=setInterval(hi,5000); c.rt=setInterval(()=>resend(false),1000);
     c.stop=()=>{ c.stopped=true; clearInterval(c.hb); clearInterval(c.rt); try{ c.mq&&c.mq.close(); }catch(e){} };
     connect();
@@ -1253,7 +1254,7 @@ function playerHTML(room,pid,demo){
       ${CATS.map(c=>cell(p,c.k,c.t)).join('')}${anyLink?cell(p,'link','Тайная связь'):''}${anySp?cell(p,'special','Особое условие'):''}</tr>`; }).join('')}
     </tbody></table></div></section>`;
 
-  return demoBar+barHTML(room)+`<div class="play">${outBanner}${speaker}${voteBlock}${dossier}${people}${scenarioHTML(scenarioOf(room),m.target,ps.length,false)}</div>`;
+  return demoBar+barHTML(room)+`<div class="play">${outBanner}${voteBlock}${speaker}${dossier}${people}${scenarioHTML(scenarioOf(room),m.target,ps.length,false)}</div>`;
 }
 
 /* ---------------- События ---------------- */
