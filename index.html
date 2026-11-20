@@ -854,10 +854,10 @@ const A = {
     const need=riot?1:(needArg||Math.max(1,plannedOut(S.room)));
     const ids=(cands||aliveOf(S.room).map(p=>p.id)).filter(id=>S.room.meta.protect?.[id]!==(S.room.meta.round||1)); if(ids.length<2) return flash('Для голосования нужно минимум 2 кандидата',true);
     if(riot && !playersOf(S.room).some(p=>p.out)) return flash('Для бунта нужен хотя бы один игрок вне бункера',true);
-    const id='v'+B.now(); const endsAt=B.now()+120000;
-    const patch={'meta/vote':{id,open:true,endsAt,candidates:Object.fromEntries(ids.map(x=>[x,true])),revote:!!cands,riot:!!riot,need},'meta/timer':{kind:'vote',endsAt,dur:120000}};
+    const id='v'+B.now();
+    const patch={'meta/vote':{id,open:true,candidates:Object.fromEntries(ids.map(x=>[x,true])),revote:!!cands,riot:!!riot,need},'meta/timer':null};
     const txt=riot?(cands?`Бунт: переголосование между: ${ids.map(x=>nameOf(S.room,x)).join(', ')}.`:'БУНТ! Те, кто остался снаружи, выбирают, кого забрать из бункера. Голосуют только они. 2 минуты.')
-      :(cands?`Переголосование между: ${ids.map(x=>nameOf(S.room,x)).join(', ')}.`:`Голосование открыто. 2 минуты.${need>1?' В этом голосовании выбывают '+outWord(need)+'.':''}`);
+      :(cands?`Переголосование между: ${ids.map(x=>nameOf(S.room,x)).join(', ')}.`:`Голосование открыто.${need>1?' В этом голосовании выбывают '+outWord(need)+'.':''}`);
     return A.upd(logEntry(patch,txt));
   },
   vote(voter,target){ const v=S.room.meta.vote; if(!v||!v.open) return; if(v.forced?.[voter]) return flash('Ваш голос перенаправлен особым условием',true); return A.upd({['votes/'+v.id+'/'+voter]:target}); },
@@ -1116,7 +1116,7 @@ function hostHTML(room){
   if(sp&&m.phase==='game'){
     const others=ps.filter(x=>x.id!==sp.id);
     selHTML=`<div class="panel tools"><div class="row"><h3 class="grow">${esc(sp.name)}</h3><button class="btn ghost sm" data-act="sel" data-pid="">Закрыть</button></div>
-      <div class="row">${!sp.out?`<button class="btn primary sm" data-act="word" data-pid="${sp.id}">Дать слово · 1:00</button>`:''}${sp.out?`<button class="btn sm" data-act="return" data-pid="${sp.id}">Вернуть в игру</button>`:`<button class="btn danger sm" data-act="exclude" data-pid="${sp.id}">Исключить</button>`}${hasBots?`<button class="btn sm" data-act="view-as" data-pid="${sp.id}">Экран игрока</button>`:''}</div>
+      <div class="row">${sp.out?`<button class="btn sm" data-act="return" data-pid="${sp.id}">Вернуть в игру</button>`:`<button class="btn danger sm" data-act="exclude" data-pid="${sp.id}">Исключить</button>`}${hasBots?`<button class="btn sm" data-act="view-as" data-pid="${sp.id}">Экран игрока</button>`:''}</div>
       <span class="label">Заменить характеристику</span><div class="row"><select id="rr-cat">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}<option value="special">Особое условие</option></select><button class="btn sm" data-act="reroll" data-pid="${sp.id}">Заменить</button></div>
       <span class="label">Обменяться с другим игроком</span><div class="row"><select id="sw-cat">${CATS.map(c=>`<option value="${c.k}">${c.t}</option>`).join('')}</select><select id="sw-to">${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select><button class="btn sm" data-act="swap" data-pid="${sp.id}">Обменять</button></div></div>`;
   }
@@ -1136,7 +1136,7 @@ function hostHTML(room){
     } else if(v.open){
       const votes=room.votes?.[v.id]||{}; const vs=votersOf(room); const notYet=vs.filter(p=>!votes[p.id]);
       vote=`<div class="panel ${v.riot?'riot':''}"><div class="row"><span class="label grow">${v.riot?'Идёт бунт · голосуют те, кто вне бункера':'Идёт голосование'}${v.revote?' · переголосование':''}${!v.riot&&(v.need||1)>1?' · выбывают '+outWord(v.need):''}</span><span class="chip">${vs.length-notYet.length}/${vs.length}</span></div>${v.riot&&!v.revote?'<p class="riot-text">'+RIOT_TEXT+'</p>':''}
-        ${timerHTML(t&&t.kind==='vote'?t:{endsAt:v.endsAt,dur:120000})}
+        
         ${voteResultsHTML(room,true)}
         ${notYet.length?`<p class="muted" style="font-size:13px">Не проголосовали: ${notYet.map(p=>esc(p.name)).join(', ')}</p>`:''}
         <div class="row"><button class="btn primary" data-act="vote-close">Завершить голосование</button><button class="btn ghost sm" data-act="vote-cancel">Отменить</button>${hasBots?'<button class="btn sm" data-act="bots-vote">Боты голосуют</button>':''}</div></div>`;
@@ -1157,7 +1157,7 @@ function hostHTML(room){
         <div class="row">${leaders.length>1&&need===1?`<button class="btn sm" data-act="revote" data-ids="${leaders.join(',')}" data-riot="${v.riot?1:''}" data-need="1">Переголосовать между лидерами</button>`:''}<button class="btn ghost sm" data-act="vote-cancel">${v.riot?'Никого не забирать':'Никого не исключать'}</button></div></div>`;
     }
   }
-  const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">Слово у игрока</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}<div><button class="btn sm" data-act="stop">Остановить таймер</button></div></div>`:'';
+  const speaker='';
   const requests=pend.length?`<div class="panel banner stack">${pend.map(p=>{
     const k=specialKind(p.card.special); const others=ps.filter(x=>x.id!==p.id); const outs=ps.filter(x=>x.out);
     const opt=list=>list.map(x=>`<option value="${x.id}">${esc(x.name)}${x.out?' (вне бункера)':''}</option>`).join('');
@@ -1235,12 +1235,12 @@ function playerHTML(room,pid,demo){
   if(v&&v.open){
     const forcedTo=v.forced?.[pid]; const myVote=forcedTo||room.votes?.[v.id]?.[pid]; const cands=Object.keys(v.candidates||{}).filter(c=>c!==pid&&room.players[c]);
     const mayVote=canVote(v,me);
-    voteBlock=`<div class="panel ${v.riot?'riot':''}"><div class="row"><h2 class="grow">${v.riot?'Бунт!':v.revote?'Переголосование':'Голосование'}</h2></div>${v.riot?'<p class="riot-text">'+RIOT_TEXT+'</p>':''}${timerHTML(t&&t.kind==='vote'?t:{endsAt:v.endsAt,dur:120000})}
+    voteBlock=`<div class="panel ${v.riot?'riot':''}"><div class="row"><h2 class="grow">${v.riot?'Бунт!':v.revote?'Переголосование':'Голосование'}</h2></div>${v.riot?'<p class="riot-text">'+RIOT_TEXT+'</p>':''}
       ${!mayVote?`<p class="muted">${v.riot?'Вы в бункере. Сейчас голосуют только те, кто снаружи.':'Вы вне бункера и не голосуете.'}</p>`:`<p class="muted">${v.riot?'Кого забираем из бункера?':(v.need||1)>1?`Кого не берём в бункер? В этом голосовании выбывают ${outWord(v.need)} — у кого больше всего голосов.`:'Кого не берём в бункер?'} Голос тайный, его можно изменить до конца голосования.</p>${forcedTo?`<p><b>Ваш голос перенаправлен особым условием: против ${esc(nameOf(room,forcedTo))}</b></p>`:`<div class="vote-grid">${cands.map(c=>`<button class="vote-opt ${myVote===c?'mine':''}" data-act="vote" data-pid="${pid}" data-target="${c}">${esc(nameOf(room,c))}</button>`).join('')}</div>${myVote?`<p class="muted">Ваш голос: ${esc(nameOf(room,myVote))}</p>`:''}`}`}</div>`;
   } else if(v&&!v.open){
     voteBlock=`<div class="panel ${v.riot?'riot':''}"><span class="label">${v.riot?'Итоги бунта':'Итоги голосования'}</span>${voteResultsHTML(room,false)}<p class="muted">Ведущая объявит решение.</p></div>`;
   }
-  const speaker=t&&t.kind==='speech'?`<div class="panel speaker"><span class="label">${t.pid===pid?'Ваше слово':'Говорит'}</span><span class="who">${esc(nameOf(room,t.pid))}</span>${timerHTML(t)}</div>`:'';
+  const speaker='';
   const outBanner=me.out?`<div class="banner bad"><b>Вы вне бункера.</b> Наблюдайте за игрой и голосуйте, если ведущая объявит бунт.</div>`:'';
 
   const boardPs=ps.filter(p=>!p.out).concat(ps.filter(p=>p.out));
@@ -1319,7 +1319,6 @@ setInterval(()=>{
     el.classList.toggle('done',left===0); el.classList.toggle('low',left>0&&left<10000);
   });
   const v=S.room?.meta?.vote;
-  if(S.role==='host'&&v?.open&&now>v.endsAt&&!S.autoClosed[v.id]){ S.autoClosed[v.id]=true; A.closeVote(); }
 },250);
 
 window.addEventListener('hashchange',route);
